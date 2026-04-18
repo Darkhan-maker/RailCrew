@@ -1,0 +1,36 @@
+{
+  "name": "railcrew-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:mobile": "pnpm --filter @railcrew/mobile start",
+    "dev:api": "pnpm --filter @railcrew/api start:dev",
+    "build:contracts": "pnpm --filter @railcrew/contracts build",
+    "build:api": "pnpm --filter @railcrew/api build",
+    "db:setup": "pnpm --filter @railcrew/api prisma:generate && pnpm --filter @railcrew/api prisma:migrate",
+    "typecheck": "pnpm -r typecheck",
+    "setup": "pnpm install && pnpm build:contracts && pnpm db:setup",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ],
+    "overrides": {
+      "react": "18.2.0",
+      "react-dom": "18.2.0"
+    }
+  },
+  "dependencies": {
+    "expo": "~51.0.28",
+    "react": "18.2.0",
+    "react-native": "0.74.5"
+  }
+}

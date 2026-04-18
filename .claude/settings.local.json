@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo:*)",
+      "Bash(pnpm --filter @railcrew/mobile typecheck)",
+      "Bash(dotnet --version)",
+      "Read(//c/Users/Дархан/RailwayRecorder/**)",
+      "Bash(python main.py)",
+      "Bash(python -m py_compile src/ui/widgets/settings_widget.py)",
+      "Read(//c/Dev/Project/apps/mobile/android/**)",
+      "Bash(GRADLE_USER_HOME=\"C:/Gradle\" ./gradlew.bat app:assembleDebug)"
+    ]
+  }
+}

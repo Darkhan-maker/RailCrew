@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  DRIVER
+  ASSISTANT
+}
+
+enum TripType {
+  FREIGHT
+  PASSENGER
+  SHUNTING
+  DEAD_RUN
+}
+
+enum TripStatus {
+  DRAFT
+  CONFIRMED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(DRIVER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile     Profile?
+  trips       Trip[]
+  salaryRules SalaryRule[]
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  firstName   String
+  lastName    String
+  employeeId  String?
+  depot       String?
+  tariffGrade Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Trip {
+  id              String     @id @default(uuid())
+  userId          String
+  routeFrom       String
+  routeTo         String
+  date            String     // YYYY-MM-DD
+  endDate         String?    // YYYY-MM-DD (overnight trips)
+  startTime       String     // HH:mm
+  endTime         String     // HH:mm
+  durationMinutes Int
+  tripType        TripType
+  status          TripStatus @default(CONFIRMED)
+  notes           String?
+  localId         String?    // клиентский UUID для offline-first
+  syncedAt        DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Work-cycle fields
+  trainNumber    String?
+  trainWeight    Float?
+  axleCount      Int?
+  locoModel      String?
+  locoNumber     String?
+  appearanceDate String?    // YYYY-MM-DD
+  appearanceTime String?    // HH:mm
+  handoverDate   String?    // YYYY-MM-DD
+  handoverTime   String?    // HH:mm
+  sectionCount   Int?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voiceInputs VoiceInput[]
+
+  @@index([userId, date])
+  @@map("trips")
+}
+
+model VoiceInput {
+  id           String   @id @default(uuid())
+  userId       String
+  tripId       String?
+  rawText      String
+  parsedFields Json
+  confidence   Float    @default(0)
+  createdAt    DateTime @default(now())
+
+  trip Trip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@map("voice_inputs")
+}
+
+model SalaryRule {
+  id                     String    @id @default(uuid())
+  userId                 String
+  name                   String
+  ratePerHour            Float
+  nightCoefficient       Float     @default(1.2)
+  overtimeCoefficient    Float     @default(1.5)
+  overtimeThresholdHours Float     @default(8)
+  tripBonus              Float     @default(0)
+  effectiveFrom          String    // YYYY-MM-DD
+  effectiveTo            String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("salary_rules")
+}

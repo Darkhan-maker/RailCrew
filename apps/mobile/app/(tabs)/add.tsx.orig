@@ -1,0 +1,894 @@
+import { useEffect, useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ScrollView, Alert, ActivityIndicator, Platform, Modal,
+} from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useTripsStore } from '@/store/trips.store';
+import { voiceService } from '@/services/voice.service';
+import {
+  localRoutesStorage, LocalRoute,
+  localSettingsStorage, LocalSettings,
+} from '@/services/storage.service';
+import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema } from '@railcrew/contracts';
+import { todayISO } from '@/utils/date';
+
+const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
+
+// ─── Локальный парсер (fallback без backend) ───────────────────────────────
+
+const RU_MONTHS: Record<string, number> = {
+  января: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5,
+  июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11,
+};
+
+function parseTextLocally(text: string): Partial<CreateTripDto> {
+  const result: Partial<CreateTripDto> = {};
+
+  const routeMatch = text.match(
+    /([А-ЯЁA-Z][а-яёa-z\-]+)\s*[-–—]\s*([А-ЯЁA-Z][а-яёa-z\-]+)/,
+  );
+  if (routeMatch) {
+    result.routeFrom = routeMatch[1];
+    result.routeTo = routeMatch[2];
+  }
+
+  const ruDate = text.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
+  if (ruDate) {
+    const day = parseInt(ruDate[1], 10);
+    const month = RU_MONTHS[ruDate[2].toLowerCase()];
+    result.date = format(new Date(new Date().getFullYear(), month, day), 'yyyy-MM-dd');
+  } else {
+    const isoDate = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    if (isoDate) result.date = isoDate[1];
+  }
+
+  const startMatch = text.match(/(?:начало|старт|с|от)\s+(\d{1,2}:\d{2})/i);
+  if (startMatch) result.startTime = startMatch[1].padStart(5, '0');
+
+  const endMatch = text.match(/(?:окончание|конец|до|по)\s+(\d{1,2}:\d{2})/i);
+  if (endMatch) result.endTime = endMatch[1].padStart(5, '0');
+
+  if (/грузов/i.test(text)) result.tripType = 'FREIGHT';
+  else if (/пассажир/i.test(text)) result.tripType = 'PASSENGER';
+  else if (/маневр/i.test(text)) result.tripType = 'SHUNTING';
+  else if (/резерв/i.test(text)) result.tripType = 'DEAD_RUN';
+
+  return result;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function calcDuration(start: string, end: string): number | null {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  if (endMin <= startMin) return null;
+  return endMin - startMin;
+}
+
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
+}
+
+/** Расчёт ночных минут в интервале start–end */
+function calcNightMinutes(
+  startTime: string, endTime: string,
+  nightStart: number, nightEnd: number,
+): number {
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  if (endMin <= startMin) return 0;
+
+  let nightMinutes = 0;
+
+  // Ночной диапазон: nightStart:00 → nightEnd:00 (через полночь)
+  const ns = nightStart * 60; // e.g. 22:00 = 1320
+  const ne = nightEnd * 60;   // e.g. 06:00 = 360
+
+  for (let m = startMin; m < endMin; m++) {
+    const hour = Math.floor(m / 60) % 24;
+    const minuteOfDay = hour * 60 + (m % 60);
+
+    if (ns > ne) {
+      // Через полночь: 22:00–06:00
+      if (minuteOfDay >= ns || minuteOfDay < ne) nightMinutes++;
+    } else {
+      // Без полуночи: e.g. 00:00–06:00
+      if (minuteOfDay >= ns && minuteOfDay < ne) nightMinutes++;
+    }
+  }
+
+  return nightMinutes;
+}
+
+type PickerMode = 'date' | 'start' | 'end' | null;
+
+// ─── Расширенные поля (не в CreateTripDto, хранятся в notes / extras) ────────
+
+type ExtendedFields = {
+  locoModel: string;
+  locoNumber: string;
+  // Электроэнергия
+  electricityAccepted: string;  // показания при приёмке
+  electricityDelivered: string; // показания при сдаче
+  recuperationAccepted: string;
+  recuperationDelivered: string;
+  // Следование пассажиром
+  passengerDepartureTime: string;
+  passengerArrivalTime: string;
+};
+
+function buildNotesWithExtras(
+  userNotes: string, ext: ExtendedFields, nightMin: number,
+): string {
+  const parts: string[] = [];
+
+  if (ext.locoModel || ext.locoNumber) {
+    parts.push(`Локомотив: ${ext.locoModel} №${ext.locoNumber}`.trim());
+  }
+
+  if (ext.electricityAccepted || ext.electricityDelivered) {
+    const consumed = (parseFloat(ext.electricityDelivered) || 0) - (parseFloat(ext.electricityAccepted) || 0);
+    parts.push(
+      `Электроэнергия: приёмка ${ext.electricityAccepted || '—'}, сдача ${ext.electricityDelivered || '—'}` +
+      (consumed > 0 ? `, расход ${consumed.toFixed(0)}` : ''),
+    );
+  }
+
+  if (ext.recuperationAccepted || ext.recuperationDelivered) {
+    parts.push(
+      `Рекуперация: приёмка ${ext.recuperationAccepted || '—'}, сдача ${ext.recuperationDelivered || '—'}`,
+    );
+  }
+
+  if (ext.passengerDepartureTime || ext.passengerArrivalTime) {
+    parts.push(
+      `Пассажиром: выезд ${ext.passengerDepartureTime || '—'}, прибытие ${ext.passengerArrivalTime || '—'}`,
+    );
+  }
+
+  if (nightMin > 0) {
+    parts.push(`Ночных: ${formatDuration(nightMin)}`);
+  }
+
+  if (userNotes.trim()) {
+    parts.push(userNotes.trim());
+  }
+
+  return parts.join('\n');
+}
+
+// ─── Screen ─────────────────────────────────────────────────────────────────
+
+export default function AddTripScreen() {
+  const params = useLocalSearchParams<{
+    routeFrom?: string;
+    routeTo?: string;
+    tripType?: TripType;
+    notes?: string;
+  }>();
+
+  const initialFields: Partial<CreateTripDto> = {
+    date: todayISO(),
+    status: 'CONFIRMED',
+    ...(params.routeFrom ? { routeFrom: params.routeFrom } : {}),
+    ...(params.routeTo ? { routeTo: params.routeTo } : {}),
+    ...(params.tripType ? { tripType: params.tripType } : {}),
+    ...(params.notes ? { notes: params.notes } : {}),
+  };
+
+  const [fields, setFields] = useState<Partial<CreateTripDto>>(initialFields);
+  const [extended, setExtended] = useState<ExtendedFields>({
+    locoModel: '',
+    locoNumber: '',
+    electricityAccepted: '',
+    electricityDelivered: '',
+    recuperationAccepted: '',
+    recuperationDelivered: '',
+    passengerDepartureTime: '',
+    passengerArrivalTime: '',
+  });
+  const [userNotes, setUserNotes] = useState(params.notes ?? '');
+  const [voiceText, setVoiceText] = useState('');
+  const [voiceDraft, setVoiceDraft] = useState<Partial<CreateTripDto> | null>(null);
+  const [draftSource, setDraftSource] = useState<'api' | 'local' | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pickerMode, setPickerMode] = useState<PickerMode>(null);
+  const [timeError, setTimeError] = useState('');
+  const [routes, setRoutes] = useState<LocalRoute[]>([]);
+  const [settings, setSettings] = useState<LocalSettings | null>(null);
+  const [nightMinutes, setNightMinutes] = useState(0);
+  const { addTrip } = useTripsStore();
+
+  useEffect(() => {
+    localRoutesStorage.getAll().then(setRoutes);
+    localSettingsStorage.get().then((s) => {
+      setSettings(s);
+      // Подставить локомотив по умолчанию
+      if (s.defaultLocoModel || s.defaultLocoNumber) {
+        setExtended((prev) => ({
+          ...prev,
+          locoModel: prev.locoModel || s.defaultLocoModel,
+          locoNumber: prev.locoNumber || s.defaultLocoNumber,
+        }));
+      }
+    });
+  }, []);
+
+  // Пересчёт ночных при изменении времени
+  useEffect(() => {
+    if (settings?.trackNightHours && fields.startTime && fields.endTime) {
+      const dur = calcDuration(fields.startTime, fields.endTime);
+      if (dur && dur > 0) {
+        const nm = calcNightMinutes(
+          fields.startTime, fields.endTime,
+          settings.nightStartHour, settings.nightEndHour,
+        );
+        setNightMinutes(nm);
+      } else {
+        setNightMinutes(0);
+      }
+    } else {
+      setNightMinutes(0);
+    }
+  }, [fields.startTime, fields.endTime, settings]);
+
+  function set(key: keyof CreateTripDto, value: string | number | TripType) {
+    setFields((f) => ({ ...f, [key]: value }));
+  }
+
+  function setExt(key: keyof ExtendedFields, value: string) {
+    setExtended((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function applyTemplate(route: LocalRoute) {
+    setFields((f) => ({
+      ...f,
+      routeFrom: route.routeFrom,
+      routeTo: route.routeTo,
+      tripType: route.tripType,
+    }));
+  }
+
+  async function handleSaveTemplate() {
+    const { routeFrom, routeTo, tripType } = fields;
+    if (!routeFrom?.trim() || !routeTo?.trim() || !tripType) {
+      Alert.alert('Заполните маршрут', 'Укажите Откуда, Куда и тип поездки');
+      return;
+    }
+    const saved = await localRoutesStorage.save({ routeFrom, routeTo, tripType });
+    setRoutes((prev) => {
+      if (prev.find((r) => r.id === saved.id)) return prev;
+      return [saved, ...prev];
+    });
+    Alert.alert('Готово', 'Шаблон сохранён');
+  }
+
+  async function handleRemoveTemplate(id: string) {
+    await localRoutesStorage.remove(id);
+    setRoutes((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  // ── Голосовой ввод → draft ──────────────────────────────────────────────
+
+  async function handleVoiceParse() {
+    if (!voiceText.trim()) return;
+    setParsing(true);
+    setVoiceDraft(null);
+    setDraftSource(null);
+    try {
+      const result = await voiceService.parseText(voiceText);
+      setVoiceDraft(result.parsedFields as Partial<CreateTripDto>);
+      setDraftSource('api');
+      if (result.ambiguities.length > 0) {
+        Alert.alert('Уточните данные', result.ambiguities.join('\n'));
+      }
+    } catch {
+      const local = parseTextLocally(voiceText);
+      setVoiceDraft(local);
+      setDraftSource('local');
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function applyDraft() {
+    if (!voiceDraft) return;
+    setFields((f) => ({ ...f, ...voiceDraft }));
+    setVoiceDraft(null);
+    setDraftSource(null);
+    setVoiceText('');
+  }
+
+  function discardDraft() {
+    setVoiceDraft(null);
+    setDraftSource(null);
+  }
+
+  // ── Пикеры ────────────────────────────────────────────────────────────────
+
+  function handleDateChange(_: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === 'android') setPickerMode(null);
+    if (!selected) return;
+    set('date', format(selected, 'yyyy-MM-dd'));
+  }
+
+  function handleTimeChange(_: DateTimePickerEvent, selected?: Date) {
+    const mode = pickerMode;
+    if (Platform.OS === 'android') setPickerMode(null);
+    if (!selected || !mode) return;
+
+    const timeStr = format(selected, 'HH:mm');
+
+    setFields((f) => {
+      const next = mode === 'start'
+        ? { ...f, startTime: timeStr }
+        : { ...f, endTime: timeStr };
+
+      const start = next.startTime;
+      const end = next.endTime;
+
+      if (start && end) {
+        const dur = calcDuration(start, end);
+        if (dur === null) {
+          setTimeError('Время окончания раньше времени начала');
+          return { ...next, durationMinutes: undefined };
+        }
+        setTimeError('');
+        return { ...next, durationMinutes: dur };
+      }
+      setTimeError('');
+      return next;
+    });
+  }
+
+  function pickerDate(): Date {
+    if (pickerMode === 'date' && fields.date) {
+      const [y, m, d] = fields.date.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    if (pickerMode === 'start' && fields.startTime) {
+      const [h, m] = fields.startTime.split(':').map(Number);
+      const d = new Date(); d.setHours(h, m, 0, 0); return d;
+    }
+    if (pickerMode === 'end' && fields.endTime) {
+      const [h, m] = fields.endTime.split(':').map(Number);
+      const d = new Date(); d.setHours(h, m, 0, 0); return d;
+    }
+    return new Date();
+  }
+
+  // ── Сохранение ────────────────────────────────────────────────────────────
+
+  async function handleSave() {
+    if (timeError) {
+      Alert.alert('Ошибка времени', timeError);
+      return;
+    }
+
+    // Собираем notes из extended полей + пользовательских заметок
+    const combinedNotes = buildNotesWithExtras(userNotes, extended, nightMinutes);
+
+    const finalFields = {
+      ...fields,
+      notes: combinedNotes || undefined,
+    };
+
+    const result = CreateTripDtoSchema.safeParse(finalFields);
+    if (!result.success) {
+      const issues = result.error.issues.map((i) => i.message).join('\n');
+      Alert.alert('Заполните все поля', issues);
+      return;
+    }
+    setSaving(true);
+    try {
+      await addTrip(result.data, true);
+      router.replace('/(tabs)/trips');
+    } catch {
+      await addTrip(result.data, false);
+      router.replace('/(tabs)/trips');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const pickerNode = pickerMode ? (
+    <DateTimePicker
+      value={pickerDate()}
+      mode={pickerMode === 'date' ? 'date' : 'time'}
+      is24Hour
+      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+      onChange={pickerMode === 'date' ? handleDateChange : handleTimeChange}
+    />
+  ) : null;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <ScrollView style={s.screen} keyboardShouldPersistTaps="handled">
+      <Text style={s.header}>Новая поездка</Text>
+
+      {/* Шаблоны маршрутов */}
+      {routes.length > 0 && (
+        <View style={s.card}>
+          <Text style={s.label}>Шаблоны маршрутов</Text>
+          <View style={s.templateList}>
+            {routes.map((r) => (
+              <View key={r.id} style={s.templateRow}>
+                <TouchableOpacity
+                  style={s.templateChip}
+                  onPress={() => applyTemplate(r)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={s.templateText} numberOfLines={1}>
+                    {r.routeFrom} → {r.routeTo}
+                  </Text>
+                  <Text style={s.templateType}>{TripTypeLabelMap[r.tripType]}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.templateRemove}
+                  onPress={() => handleRemoveTemplate(r.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={s.templateRemoveText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Голосовой ввод */}
+      <View style={s.card}>
+        <Text style={s.label}>Голосовой / текстовый ввод</Text>
+        <TextInput
+          style={[s.input, { minHeight: 70, textAlignVertical: 'top' }]}
+          placeholder="Пример: Астана - Алматы, 7 апреля, начало 08:00, окончание 16:30, грузовой"
+          placeholderTextColor="#475569"
+          multiline
+          value={voiceText}
+          onChangeText={setVoiceText}
+        />
+        <TouchableOpacity
+          style={[s.btn, s.btnSecondary, (parsing || !voiceText.trim()) && { opacity: 0.5 }]}
+          onPress={handleVoiceParse}
+          disabled={parsing || !voiceText.trim()}
+        >
+          {parsing ? (
+            <ActivityIndicator color="#3b82f6" />
+          ) : (
+            <Text style={s.btnSecondaryText}>Распознать</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Draft preview */}
+        {voiceDraft && (
+          <View style={s.draftBox}>
+            <View style={s.draftHeader}>
+              <Text style={s.draftTitle}>Распознано</Text>
+              <Text style={s.draftBadge}>
+                {draftSource === 'api' ? 'сервер' : 'локально'}
+              </Text>
+            </View>
+
+            {voiceDraft.routeFrom || voiceDraft.routeTo ? (
+              <DraftRow
+                label="Маршрут"
+                value={[voiceDraft.routeFrom, voiceDraft.routeTo].filter(Boolean).join(' → ')}
+              />
+            ) : null}
+            {voiceDraft.date && <DraftRow label="Дата" value={voiceDraft.date} />}
+            {voiceDraft.startTime && <DraftRow label="Начало" value={voiceDraft.startTime} />}
+            {voiceDraft.endTime && <DraftRow label="Окончание" value={voiceDraft.endTime} />}
+            {voiceDraft.tripType && (
+              <DraftRow label="Тип" value={TripTypeLabelMap[voiceDraft.tripType]} />
+            )}
+
+            {Object.keys(voiceDraft).filter((k) => voiceDraft[k as keyof typeof voiceDraft]).length === 0 && (
+              <Text style={s.draftEmpty}>Не удалось распознать поля</Text>
+            )}
+
+            <View style={s.draftActions}>
+              <TouchableOpacity style={s.draftApply} onPress={applyDraft}>
+                <Text style={s.draftApplyText}>Применить к форме</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.draftDiscard} onPress={discardDraft}>
+                <Text style={s.draftDiscardText}>Отклонить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* ─── Поля формы ───────────────────────────────────────────────────── */}
+      <View style={s.card}>
+
+        {/* Маршрут */}
+        <View style={s.routeHeader}>
+          <Text style={s.label}>Маршрут</Text>
+          <TouchableOpacity onPress={handleSaveTemplate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={s.saveTemplateBtn}>+ сохранить шаблон</Text>
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={s.input}
+          placeholder="Откуда"
+          placeholderTextColor="#475569"
+          value={fields.routeFrom ?? ''}
+          onChangeText={(v) => set('routeFrom', v)}
+        />
+        <View style={s.routeDivider}>
+          <View style={s.routeLine} />
+          <Text style={s.routeArrow}>↓</Text>
+          <View style={s.routeLine} />
+        </View>
+        <TextInput
+          style={s.input}
+          placeholder="Куда"
+          placeholderTextColor="#475569"
+          value={fields.routeTo ?? ''}
+          onChangeText={(v) => set('routeTo', v)}
+        />
+
+        {/* Дата */}
+        <Text style={s.label}>Дата</Text>
+        <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('date')} activeOpacity={0.7}>
+          <Text style={fields.date ? s.pickerValue : s.pickerPlaceholder}>
+            {fields.date ?? 'Выбрать дату'}
+          </Text>
+          <Text style={s.pickerIcon}>📅</Text>
+        </TouchableOpacity>
+
+        {/* Время */}
+        <View style={s.timeRow}>
+          <View style={s.timeCol}>
+            <Text style={s.label}>Начало (явка)</Text>
+            <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('start')} activeOpacity={0.7}>
+              <Text style={fields.startTime ? s.pickerValue : s.pickerPlaceholder}>
+                {fields.startTime ?? '--:--'}
+              </Text>
+              <Text style={s.pickerIcon}>🕐</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.timeSep} />
+          <View style={s.timeCol}>
+            <Text style={s.label}>Окончание</Text>
+            <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('end')} activeOpacity={0.7}>
+              <Text style={fields.endTime ? s.pickerValue : s.pickerPlaceholder}>
+                {fields.endTime ?? '--:--'}
+              </Text>
+              <Text style={s.pickerIcon}>🕐</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {timeError ? (
+          <Text style={s.timeError}>{timeError}</Text>
+        ) : fields.durationMinutes ? (
+          <View>
+            <Text style={s.duration}>Длительность: {formatDuration(fields.durationMinutes)}</Text>
+            {nightMinutes > 0 && settings?.trackNightHours && (
+              <Text style={s.nightInfo}>
+                🌙 Ночных: {formatDuration(nightMinutes)}
+              </Text>
+            )}
+          </View>
+        ) : null}
+
+        {/* Тип */}
+        <Text style={s.label}>Тип поездки</Text>
+        <View style={s.chipRow}>
+          {TYPES.map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[s.typeChip, fields.tripType === t && s.typeChipActive]}
+              onPress={() => set('tripType', t)}
+            >
+              <Text style={[s.typeChipText, fields.tripType === t && s.typeChipTextActive]}>
+                {TripTypeLabelMap[t]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* ─── Локомотив ────────────────────────────────────────────────────── */}
+      <View style={s.card}>
+        <Text style={s.sectionTitle}>Локомотив</Text>
+        <View style={s.twoColRow}>
+          <View style={{ flex: 2 }}>
+            <Text style={s.label}>Модель (серия)</Text>
+            <TextInput
+              style={s.input}
+              placeholder="ВЛ80, КЗ8А..."
+              placeholderTextColor="#475569"
+              value={extended.locoModel}
+              onChangeText={(v) => setExt('locoModel', v)}
+            />
+          </View>
+          <View style={{ width: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Номер</Text>
+            <TextInput
+              style={s.input}
+              placeholder="0542"
+              placeholderTextColor="#475569"
+              value={extended.locoNumber}
+              onChangeText={(v) => setExt('locoNumber', v)}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* ─── Электроэнергия (если включена) ───────────────────────────────── */}
+      {settings?.trackElectricity && (
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Электроэнергия</Text>
+
+          <Text style={s.subLabel}>Счётчик электроэнергии</Text>
+          <View style={s.twoColRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Приёмка</Text>
+              <TextInput
+                style={s.input}
+                placeholder="0"
+                placeholderTextColor="#475569"
+                keyboardType="numeric"
+                value={extended.electricityAccepted}
+                onChangeText={(v) => setExt('electricityAccepted', v)}
+              />
+            </View>
+            <View style={{ width: 10 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Сдача</Text>
+              <TextInput
+                style={s.input}
+                placeholder="0"
+                placeholderTextColor="#475569"
+                keyboardType="numeric"
+                value={extended.electricityDelivered}
+                onChangeText={(v) => setExt('electricityDelivered', v)}
+              />
+            </View>
+          </View>
+
+          {/* Расход */}
+          {extended.electricityAccepted && extended.electricityDelivered && (
+            <Text style={s.calcResult}>
+              Расход: {Math.max(0, (parseFloat(extended.electricityDelivered) || 0) - (parseFloat(extended.electricityAccepted) || 0)).toFixed(0)} кВт·ч
+            </Text>
+          )}
+
+          <Text style={[s.subLabel, { marginTop: 12 }]}>Рекуперация</Text>
+          <View style={s.twoColRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Приёмка</Text>
+              <TextInput
+                style={s.input}
+                placeholder="0"
+                placeholderTextColor="#475569"
+                keyboardType="numeric"
+                value={extended.recuperationAccepted}
+                onChangeText={(v) => setExt('recuperationAccepted', v)}
+              />
+            </View>
+            <View style={{ width: 10 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Сдача</Text>
+              <TextInput
+                style={s.input}
+                placeholder="0"
+                placeholderTextColor="#475569"
+                keyboardType="numeric"
+                value={extended.recuperationDelivered}
+                onChangeText={(v) => setExt('recuperationDelivered', v)}
+              />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ─── Следование пассажиром (если включено) ─────────────────────────── */}
+      {settings?.trackPassengerTravel && (
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Следование пассажиром</Text>
+          <View style={s.twoColRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Выезд</Text>
+              <TextInput
+                style={s.input}
+                placeholder="ЧЧ:ММ"
+                placeholderTextColor="#475569"
+                value={extended.passengerDepartureTime}
+                onChangeText={(v) => setExt('passengerDepartureTime', v)}
+              />
+            </View>
+            <View style={{ width: 10 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Прибытие</Text>
+              <TextInput
+                style={s.input}
+                placeholder="ЧЧ:ММ"
+                placeholderTextColor="#475569"
+                value={extended.passengerArrivalTime}
+                onChangeText={(v) => setExt('passengerArrivalTime', v)}
+              />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ─── Примечание ───────────────────────────────────────────────────── */}
+      <View style={s.card}>
+        <Text style={s.label}>Примечание</Text>
+        <TextInput
+          style={s.input}
+          placeholder="Необязательно"
+          placeholderTextColor="#475569"
+          value={userNotes}
+          onChangeText={setUserNotes}
+        />
+      </View>
+
+      <TouchableOpacity style={[s.btn, saving && { opacity: 0.5 }]} onPress={handleSave} disabled={saving}>
+        {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Сохранить поездку</Text>}
+      </TouchableOpacity>
+
+      {/* iOS bottom sheet */}
+      {Platform.OS === 'ios' && pickerMode ? (
+        <Modal transparent animationType="slide" visible>
+          <View style={s.iosOverlay}>
+            <View style={s.iosSheet}>
+              <View style={s.iosSheetHeader}>
+                <Text style={s.iosSheetTitle}>
+                  {pickerMode === 'date' ? 'Выберите дату' : pickerMode === 'start' ? 'Время начала' : 'Время окончания'}
+                </Text>
+                <TouchableOpacity onPress={() => setPickerMode(null)}>
+                  <Text style={s.iosSheetDone}>Готово</Text>
+                </TouchableOpacity>
+              </View>
+              {pickerNode}
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        pickerNode
+      )}
+    </ScrollView>
+  );
+}
+
+function DraftRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.draftRow}>
+      <Text style={s.draftRowLabel}>{label}</Text>
+      <Text style={s.draftRowValue}>{value}</Text>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0f172a', padding: 16 },
+  header: { color: '#f1f5f9', fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
+  card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 12 },
+  label: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 8 },
+  input: {
+    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
+    padding: 12, fontSize: 15, marginBottom: 4,
+  },
+
+  // Новые секции
+  sectionTitle: { color: '#f1f5f9', fontSize: 15, fontWeight: '600', marginBottom: 4 },
+  subLabel: { color: '#64748b', fontSize: 13, fontWeight: '600', marginBottom: 4 },
+  twoColRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  calcResult: { color: '#34d399', fontSize: 13, marginTop: 8 },
+  nightInfo: { color: '#a78bfa', fontSize: 13, marginTop: 2 },
+
+  // Шаблоны
+  templateList: { gap: 8 },
+  templateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  templateChip: {
+    flex: 1, backgroundColor: '#0f172a', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 1, borderColor: '#334155',
+  },
+  templateText: { color: '#f1f5f9', fontSize: 14 },
+  templateType: { color: '#475569', fontSize: 12, marginTop: 2 },
+  templateRemove: { padding: 4 },
+  templateRemoveText: { color: '#475569', fontSize: 14 },
+
+  // Маршрут
+  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  saveTemplateBtn: { color: '#3b82f6', fontSize: 13 },
+  routeDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
+  routeLine: { flex: 1, height: 1, backgroundColor: '#334155' },
+  routeArrow: { color: '#475569', fontSize: 16, marginHorizontal: 8 },
+
+  // Picker fields
+  pickerField: {
+    backgroundColor: '#0f172a', borderRadius: 10, padding: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  pickerValue: { color: '#f1f5f9', fontSize: 15 },
+  pickerPlaceholder: { color: '#475569', fontSize: 15 },
+  pickerIcon: { fontSize: 16 },
+
+  // Время
+  timeRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  timeCol: { flex: 1 },
+  timeSep: { width: 12 },
+  timeError: { color: '#ef4444', fontSize: 13, marginTop: 6, marginBottom: 4 },
+  duration: { color: '#34d399', fontSize: 13, marginTop: 6, marginBottom: 4 },
+
+  // Chips
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  typeChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+  },
+  typeChipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  typeChipText: { color: '#64748b', fontSize: 13 },
+  typeChipTextActive: { color: '#fff', fontWeight: '600' },
+
+  // Voice draft
+  draftBox: {
+    marginTop: 12, backgroundColor: '#0f172a', borderRadius: 10,
+    padding: 12, borderWidth: 1, borderColor: '#1d4ed8',
+  },
+  draftHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  draftTitle: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
+  draftBadge: {
+    color: '#475569', fontSize: 11, backgroundColor: '#1e293b',
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+  },
+  draftRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  draftRowLabel: { color: '#475569', fontSize: 13 },
+  draftRowValue: { color: '#f1f5f9', fontSize: 13 },
+  draftEmpty: { color: '#475569', fontSize: 13, marginBottom: 8 },
+  draftActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  draftApply: {
+    flex: 1, backgroundColor: '#1d4ed8', borderRadius: 8,
+    paddingVertical: 8, alignItems: 'center',
+  },
+  draftApplyText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  draftDiscard: {
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 8, borderWidth: 1, borderColor: '#334155',
+    alignItems: 'center',
+  },
+  draftDiscardText: { color: '#64748b', fontSize: 13 },
+
+  // Кнопки
+  btn: {
+    backgroundColor: '#3b82f6', borderRadius: 12, padding: 16,
+    alignItems: 'center', marginBottom: 40,
+  },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  btnSecondary: {
+    backgroundColor: 'transparent', borderWidth: 1, borderColor: '#3b82f6', marginTop: 8,
+  },
+  btnSecondaryText: { color: '#3b82f6', fontSize: 15, fontWeight: '600' },
+
+  // iOS bottom sheet
+  iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  iosSheet: {
+    backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingBottom: 32,
+  },
+  iosSheetHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: '#334155',
+  },
+  iosSheetTitle: { color: '#f1f5f9', fontSize: 16, fontWeight: '600' },
+  iosSheetDone: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
+});
