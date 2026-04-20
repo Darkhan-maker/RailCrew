@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert, TextInput,
+  TouchableOpacity, ActivityIndicator, Alert, TextInput, Modal,
 } from 'react-native';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import * as FileSystem from 'expo-file-system';
@@ -117,6 +117,149 @@ async function exportToCSV(trips: LocalTrip[], periodLabel: string) {
   });
 }
 
+// ─── Filter modal ─────────────────────────────────────────────────────────────
+
+interface FilterModalProps {
+  visible: boolean;
+  onClose: () => void;
+  routeFrom: string;
+  routeTo: string;
+  dateFrom: string;
+  dateTo: string;
+  tripType: TripType | null;
+  onApply: (params: {
+    routeFrom: string;
+    routeTo: string;
+    dateFrom: string;
+    dateTo: string;
+    tripType: TripType | null;
+  }) => void;
+}
+
+function FilterModal({
+  visible, onClose,
+  routeFrom: initRouteFrom, routeTo: initRouteTo,
+  dateFrom: initDateFrom, dateTo: initDateTo,
+  tripType: initTripType,
+  onApply,
+}: FilterModalProps) {
+  const [routeFrom, setRouteFrom] = useState(initRouteFrom);
+  const [routeTo, setRouteTo] = useState(initRouteTo);
+  const [dateFrom, setDateFrom] = useState(initDateFrom);
+  const [dateTo, setDateTo] = useState(initDateTo);
+  const [tripType, setTripType] = useState<TripType | null>(initTripType);
+
+  useEffect(() => {
+    if (visible) {
+      setRouteFrom(initRouteFrom);
+      setRouteTo(initRouteTo);
+      setDateFrom(initDateFrom);
+      setDateTo(initDateTo);
+      setTripType(initTripType);
+    }
+  }, [visible]);
+
+  function handleApply() {
+    onApply({ routeFrom, routeTo, dateFrom, dateTo, tripType });
+    onClose();
+  }
+
+  function handleReset() {
+    setRouteFrom('');
+    setRouteTo('');
+    setDateFrom('');
+    setDateTo('');
+    setTripType(null);
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={ms.overlay}>
+        <View style={ms.sheet}>
+          <View style={ms.handle} />
+          <Text style={ms.title}>Фильтры</Text>
+
+          <Text style={ms.label}>Станция отправления</Text>
+          <TextInput
+            style={ms.input}
+            placeholder="Напр.: Алматы"
+            placeholderTextColor="#475569"
+            value={routeFrom}
+            onChangeText={setRouteFrom}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <Text style={ms.label}>Станция назначения</Text>
+          <TextInput
+            style={ms.input}
+            placeholder="Напр.: Астана"
+            placeholderTextColor="#475569"
+            value={routeTo}
+            onChangeText={setRouteTo}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <Text style={ms.label}>Дата от (ГГГГ-ММ-ДД)</Text>
+          <TextInput
+            style={ms.input}
+            placeholder="2025-01-01"
+            placeholderTextColor="#475569"
+            value={dateFrom}
+            onChangeText={setDateFrom}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+          />
+
+          <Text style={ms.label}>Дата до (ГГГГ-ММ-ДД)</Text>
+          <TextInput
+            style={ms.input}
+            placeholder="2025-12-31"
+            placeholderTextColor="#475569"
+            value={dateTo}
+            onChangeText={setDateTo}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+          />
+
+          <Text style={ms.label}>Тип поездки</Text>
+          <View style={ms.chipWrap}>
+            <TouchableOpacity
+              style={[ms.chip, tripType === null && ms.chipActive]}
+              onPress={() => setTripType(null)}
+              activeOpacity={0.75}
+            >
+              <Text style={[ms.chipText, tripType === null && ms.chipTextActive]}>Все</Text>
+            </TouchableOpacity>
+            {TRIP_TYPES.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[ms.chip, tripType === t && ms.chipActive]}
+                onPress={() => setTripType(tripType === t ? null : t)}
+                activeOpacity={0.75}
+              >
+                <Text style={[ms.chipText, tripType === t && ms.chipTextActive]}>
+                  {TripTypeLabelMap[t]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={ms.actions}>
+            <TouchableOpacity style={ms.resetBtn} onPress={handleReset} activeOpacity={0.75}>
+              <Text style={ms.resetBtnText}>Сбросить</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={ms.applyBtn} onPress={handleApply} activeOpacity={0.75}>
+              <Text style={ms.applyBtnText}>Применить</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TripsScreen() {
@@ -131,9 +274,19 @@ export default function TripsScreen() {
   const [multiSectionOnly, setMultiSectionOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // Modal filter state
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [modalRouteFrom, setModalRouteFrom] = useState('');
+  const [modalRouteTo, setModalRouteTo] = useState('');
+  const [modalDateFrom, setModalDateFrom] = useState('');
+  const [modalDateTo, setModalDateTo] = useState('');
+  const [modalTripType, setModalTripType] = useState<TripType | null>(null);
+
+  const hasModalFilters = !!(modalRouteFrom || modalRouteTo || modalDateFrom || modalDateTo || modalTripType);
+
   const hasActiveFilters =
     period !== 'MONTH' || search !== '' || tripTypeFilter !== null ||
-    locoFilter !== null || unsyncedOnly || multiSectionOnly;
+    locoFilter !== null || unsyncedOnly || multiSectionOnly || hasModalFilters;
 
   function clearFilters() {
     setSearch('');
@@ -142,6 +295,11 @@ export default function TripsScreen() {
     setUnsyncedOnly(false);
     setMultiSectionOnly(false);
     setPeriod('MONTH');
+    setModalRouteFrom('');
+    setModalRouteTo('');
+    setModalDateFrom('');
+    setModalDateTo('');
+    setModalTripType(null);
   }
 
   useEffect(() => {
@@ -157,6 +315,10 @@ export default function TripsScreen() {
     const bounds = getPeriodBounds(period);
     if (bounds) result = result.filter((t) => t.date >= bounds.from && t.date <= bounds.to);
 
+    // Modal date range (overrides period for exact range)
+    if (modalDateFrom) result = result.filter((t) => t.date >= modalDateFrom);
+    if (modalDateTo) result = result.filter((t) => t.date <= modalDateTo);
+
     // Text search — route stations, loco, train number, notes
     const q = search.trim().toLowerCase();
     if (q) {
@@ -170,8 +332,19 @@ export default function TripsScreen() {
       );
     }
 
-    // Trip type
-    if (tripTypeFilter) result = result.filter((t) => t.tripType === tripTypeFilter);
+    // Modal station filters
+    if (modalRouteFrom) {
+      const rf = modalRouteFrom.trim().toLowerCase();
+      result = result.filter((t) => t.routeFrom.toLowerCase().includes(rf));
+    }
+    if (modalRouteTo) {
+      const rt = modalRouteTo.trim().toLowerCase();
+      result = result.filter((t) => t.routeTo.toLowerCase().includes(rt));
+    }
+
+    // Trip type (chips row or modal)
+    const effectiveTripType = modalTripType ?? tripTypeFilter;
+    if (effectiveTripType) result = result.filter((t) => t.tripType === effectiveTripType);
 
     // Locomotive model
     if (locoFilter) result = result.filter((t) => t.locoModel === locoFilter);
@@ -183,7 +356,8 @@ export default function TripsScreen() {
     if (multiSectionOnly) result = result.filter((t) => (t.sectionCount ?? 1) > 1);
 
     return result;
-  }, [trips, period, search, tripTypeFilter, locoFilter, unsyncedOnly, multiSectionOnly]);
+  }, [trips, period, search, tripTypeFilter, locoFilter, unsyncedOnly, multiSectionOnly,
+    modalRouteFrom, modalRouteTo, modalDateFrom, modalDateTo, modalTripType]);
 
   const totalMinutes = useMemo(
     () => filtered.reduce((sum, t) => sum + (t.durationMinutes ?? 0), 0),
@@ -290,16 +464,27 @@ export default function TripsScreen() {
       {/* Header row */}
       <View style={s.topRow}>
         <Text style={s.header}>История поездок</Text>
-        <TouchableOpacity
-          style={[s.exportBtn, exporting && { opacity: 0.5 }]}
-          onPress={handleExport}
-          disabled={exporting}
-          activeOpacity={0.75}
-        >
-          {exporting
-            ? <ActivityIndicator color="#3b82f6" size="small" />
-            : <Text style={s.exportBtnText}>CSV</Text>}
-        </TouchableOpacity>
+        <View style={s.topRowActions}>
+          <TouchableOpacity
+            style={[s.filterBtn, hasModalFilters && s.filterBtnActive]}
+            onPress={() => setFilterModalVisible(true)}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.filterBtnText, hasModalFilters && s.filterBtnTextActive]}>
+              {hasModalFilters ? 'Фильтры ●' : 'Фильтры'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.exportBtn, exporting && { opacity: 0.5 }]}
+            onPress={handleExport}
+            disabled={exporting}
+            activeOpacity={0.75}
+          >
+            {exporting
+              ? <ActivityIndicator color="#3b82f6" size="small" />
+              : <Text style={s.exportBtnText}>CSV</Text>}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search input */}
@@ -453,6 +638,24 @@ export default function TripsScreen() {
           }
         />
       )}
+
+      {/* Filter modal */}
+      <FilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        routeFrom={modalRouteFrom}
+        routeTo={modalRouteTo}
+        dateFrom={modalDateFrom}
+        dateTo={modalDateTo}
+        tripType={modalTripType}
+        onApply={({ routeFrom, routeTo, dateFrom, dateTo, tripType }) => {
+          setModalRouteFrom(routeFrom);
+          setModalRouteTo(routeTo);
+          setModalDateFrom(dateFrom);
+          setModalDateTo(dateTo);
+          setModalTripType(tripType);
+        }}
+      />
     </View>
   );
 }
@@ -477,6 +680,14 @@ const s = StyleSheet.create({
     alignItems: 'center', marginTop: 48, marginBottom: 10,
   },
   header: { color: '#f1f5f9', fontSize: 24, fontWeight: 'bold' },
+  topRowActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  filterBtn: {
+    borderWidth: 1, borderColor: '#334155', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center',
+  },
+  filterBtnActive: { borderColor: '#3b82f6', backgroundColor: '#1e3a5f' },
+  filterBtnText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+  filterBtnTextActive: { color: '#3b82f6' },
   exportBtn: {
     borderWidth: 1, borderColor: '#334155', borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 6, minWidth: 44, alignItems: 'center',
@@ -503,7 +714,7 @@ const s = StyleSheet.create({
   filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
   // Toggle chips + clear
-  toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' },
   toggleChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
@@ -512,7 +723,7 @@ const s = StyleSheet.create({
   toggleChipText: { color: '#64748b', fontSize: 12 },
   toggleChipTextActive: { color: '#0f172a', fontWeight: '600' },
   clearBtn: {
-    marginLeft: 'auto', paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 20, borderWidth: 1, borderColor: '#ef4444',
   },
   clearBtnText: { color: '#ef4444', fontSize: 12 },
@@ -544,4 +755,47 @@ const s = StyleSheet.create({
   elecText: { color: '#34d399', fontSize: 12 },
   duration: { color: '#94a3b8', fontSize: 13 },
   empty: { color: '#64748b', textAlign: 'center', marginTop: 60, fontSize: 16 },
+});
+
+// ─── Modal styles ─────────────────────────────────────────────────────────────
+
+const ms = StyleSheet.create({
+  overlay: {
+    flex: 1, justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheet: {
+    backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, paddingBottom: 36,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#334155',
+    alignSelf: 'center', marginBottom: 16,
+  },
+  title: { color: '#f1f5f9', fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  label: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 },
+  input: {
+    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 14,
+    borderWidth: 1, borderColor: '#334155',
+  },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+  },
+  chipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
+  chipText: { color: '#64748b', fontSize: 13 },
+  chipTextActive: { color: '#fff', fontWeight: '600' },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  resetBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: '#334155', alignItems: 'center',
+  },
+  resetBtnText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  applyBtn: {
+    flex: 2, paddingVertical: 12, borderRadius: 10,
+    backgroundColor: '#3b82f6', alignItems: 'center',
+  },
+  applyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
