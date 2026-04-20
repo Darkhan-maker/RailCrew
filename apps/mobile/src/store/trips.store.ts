@@ -3,10 +3,9 @@ import { CreateTripDto } from '@railcrew/contracts';
 import { LocalTrip, LocalCreateTripDto, localTripsStorage } from '../services/storage.service';
 import { tripsApi } from '../services/api.service';
 
-// Strip mobile-only fields (not in contracts) before sending to API.
-// trainNumber, trainWeight, axleCount, locoModel, locoNumber,
-// appearanceDate/Time, handoverDate/Time, sectionCount are now in contracts
-// and flow through to the API without stripping.
+// Strip mobile-only fields before sending to API, then remove any null values.
+// CreateTripDtoSchema uses .optional() (not .nullish()), so null is rejected by
+// the backend. Converting null → undefined means the key is omitted from JSON.
 function toContractDto(dto: LocalCreateTripDto): CreateTripDto {
   const {
     meterStart, meterEnd,
@@ -17,7 +16,12 @@ function toContractDto(dto: LocalCreateTripDto): CreateTripDto {
   void meterStart; void meterEnd;
   void sectionMeters;
   void nightMinutes;
-  return contractDto;
+
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(contractDto)) {
+    if (v !== null) result[k] = v;
+  }
+  return result as CreateTripDto;
 }
 
 interface TripsState {
@@ -77,7 +81,11 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       void meterStart; void meterEnd;
       void sectionMeters;
       void nightMinutes;
-      await tripsApi.update(id, contractPatch);
+      const cleanPatch: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(contractPatch)) {
+        if (v !== null) cleanPatch[k] = v;
+      }
+      await tripsApi.update(id, cleanPatch as typeof contractPatch);
     } catch {
       // offline — saved locally
     }

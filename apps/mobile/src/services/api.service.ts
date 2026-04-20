@@ -10,13 +10,15 @@ import {
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
-export const http = axios.create({ baseURL: BASE_URL, timeout: 10000 });
+export const http = axios.create({ baseURL: BASE_URL, timeout: 8000 });
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.log('API ERROR URL:', error?.config?.baseURL, error?.config?.url);
-    console.log('API ERROR STATUS:', error?.response?.status);
-    console.log('API ERROR DATA:', error?.response?.data);
+    // Only log real server errors (response received). Network failures
+    // (no response, status undefined) are expected in offline mode — skip them.
+    if (error?.response) {
+      console.warn('API error', error.config?.url, error.response.status, error.response.data);
+    }
     return Promise.reject(error);
   }
 );

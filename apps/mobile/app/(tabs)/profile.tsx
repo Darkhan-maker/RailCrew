@@ -11,7 +11,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/store/auth.store';
 import { useTripsStore } from '@/store/trips.store';
 import { http } from '@/services/api.service';
-import { backupStorage } from '@/services/storage.service';
+import { backupStorage, tokenStorage } from '@/services/storage.service';
 import { UpdateProfileDtoSchema, UpdateProfileDto } from '@railcrew/contracts';
 
 export default function ProfileScreen() {
@@ -28,6 +28,11 @@ export default function ProfileScreen() {
   const [restoreBusy, setRestoreBusy] = useState(false);
 
   async function handleSaveProfile() {
+    const token = await tokenStorage.get();
+    if (token === 'demo_mode_token') {
+      Alert.alert('Демо-режим', 'В демо-режиме сохранение профиля недоступно');
+      return;
+    }
     const dto: UpdateProfileDto = { firstName, lastName, employeeId, depot };
     const result = UpdateProfileDtoSchema.safeParse(dto);
     if (!result.success) {

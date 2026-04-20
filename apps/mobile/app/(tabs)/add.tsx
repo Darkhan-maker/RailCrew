@@ -381,18 +381,29 @@ export default function AddTripScreen() {
     };
 
     setSaving(true);
+    let savedOffline = false;
     try {
       await addTrip(finalDto, true);
     } catch {
+      savedOffline = true;
       await addTrip(finalDto, false);
     } finally {
       setSaving(false);
     }
-    router.replace('/(tabs)/trips');
+
+    if (savedOffline) {
+      Alert.alert(
+        'Сохранено локально',
+        'Сервер недоступен. Поездка сохранена на устройстве и синхронизируется позже.',
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)/trips') }],
+      );
+    } else {
+      router.replace('/(tabs)/trips');
+    }
   }
 
   return (
-    <ScrollView style={s.screen} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView style={s.screen} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
       <Text style={s.header}>Новая поездка</Text>
 
       {/* ─── Шаблоны ─────────────────────────────────────── */}

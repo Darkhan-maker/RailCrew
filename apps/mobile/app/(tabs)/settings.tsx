@@ -7,6 +7,7 @@ import {
   localSettingsStorage, LocalSettings,
   localSalaryStorage, LocalSalaryRule,
 } from '@/services/storage.service';
+import { useAuthStore } from '@/store/auth.store';
 
 // ─── Часовые пояса (относительно Москвы) ─────────────────────────────────────
 
@@ -27,6 +28,7 @@ const TIMEZONE_OPTIONS: { label: string; value: number }[] = [
 ];
 
 export default function SettingsScreen() {
+  const { profile, user } = useAuthStore();
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [salary, setSalary] = useState<LocalSalaryRule | null>(null);
   const [saving, setSaving] = useState(false);
@@ -87,9 +89,28 @@ export default function SettingsScreen() {
 
   const currentTz = TIMEZONE_OPTIONS.find((t) => t.value === settings.timezoneOffsetFromMoscow);
 
+  const initials = profile
+    ? ((profile.firstName?.[0] ?? '') + (profile.lastName?.[0] ?? '')).toUpperCase() || '?'
+    : '?';
+
   return (
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 60 }}>
       <Text style={s.header}>Настройки</Text>
+
+      {/* ─── Профиль ──────────────────────────────────────────────────────── */}
+      {profile && (
+        <View style={[s.card, s.profileCard]}>
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>{initials}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.profileName}>
+              {[profile.firstName, profile.lastName].filter(Boolean).join(' ')}
+            </Text>
+            {user?.email ? <Text style={s.profileEmail}>{user.email}</Text> : null}
+          </View>
+        </View>
+      )}
 
       {/* ─── Часовой пояс ─────────────────────────────────────────────────── */}
       <View style={s.card}>
@@ -368,6 +389,16 @@ const s = StyleSheet.create({
   card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 12 },
   cardTitle: { color: '#f1f5f9', fontSize: 16, fontWeight: '600', marginBottom: 2 },
   cardHint: { color: '#475569', fontSize: 13, marginBottom: 12 },
+
+  profileCard: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
+  avatar: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#0f2847', borderWidth: 2, borderColor: '#4D8DFF',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  avatarText: { color: '#4D8DFF', fontSize: 20, fontWeight: '700' },
+  profileName: { color: '#f1f5f9', fontSize: 16, fontWeight: '600', marginBottom: 2 },
+  profileEmail: { color: '#475569', fontSize: 13 },
 
   label: { color: '#94a3b8', fontSize: 13, marginBottom: 4 },
   input: {

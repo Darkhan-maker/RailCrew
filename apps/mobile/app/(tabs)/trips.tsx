@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, FlatList, StyleSheet, ScrollView,
+  TouchableOpacity, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips.store';
-import { TripTypeLabelMap } from '@railcrew/contracts';
+import { TripType, TripTypeLabelMap } from '@railcrew/contracts';
 import { LocalTrip } from '@/services/storage.service';
 import { formatDateRu, formatDuration } from '@/utils/date';
+
+// ─── Period filter ────────────────────────────────────────────────────────────
 
 type PeriodFilter = 'ALL' | 'DAY' | 'WEEK' | 'MONTH';
 
@@ -38,7 +40,11 @@ function getPeriodBounds(period: PeriodFilter): { from: string; to: string } | n
   }
 }
 
-// ─── CSV export ─────────────────────────────────────────────────────────────
+// ─── Trip type chips ──────────────────────────────────────────────────────────
+
+const TRIP_TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
+
+// ─── CSV export ───────────────────────────────────────────────────────────────
 
 function computeElec(trip: LocalTrip): number | null {
   if (trip.sectionMeters && trip.sectionMeters.length > 0) {
@@ -111,28 +117,89 @@ async function exportToCSV(trips: LocalTrip[], periodLabel: string) {
   });
 }
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TripsScreen() {
   const { trips, isLoading, loadLocal, syncPending, deleteTrip } = useTripsStore();
+
+  // ── Filter state ────────────────────────────────────────────────────────────
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
+  const [search, setSearch] = useState('');
+  const [tripTypeFilter, setTripTypeFilter] = useState<TripType | null>(null);
+  const [locoFilter, setLocoFilter] = useState<string | null>(null);
+  const [unsyncedOnly, setUnsyncedOnly] = useState(false);
+  const [multiSectionOnly, setMultiSectionOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  const hasActiveFilters =
+    period !== 'MONTH' || search !== '' || tripTypeFilter !== null ||
+    locoFilter !== null || unsyncedOnly || multiSectionOnly;
+
+  function clearFilters() {
+    setSearch('');
+    setTripTypeFilter(null);
+    setLocoFilter(null);
+    setUnsyncedOnly(false);
+    setMultiSectionOnly(false);
+    setPeriod('MONTH');
+  }
 
   useEffect(() => {
     loadLocal();
     syncPending().catch(() => {});
   }, []);
 
+  // ── Filtering ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
+    let result = trips;
+
+    // Period
     const bounds = getPeriodBounds(period);
-    if (!bounds) return trips;
-    return trips.filter((t) => t.date >= bounds.from && t.date <= bounds.to);
-  }, [trips, period]);
+    if (bounds) result = result.filter((t) => t.date >= bounds.from && t.date <= bounds.to);
+
+    // Text search — route stations, loco, train number, notes
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter((t) =>
+        t.routeFrom.toLowerCase().includes(q) ||
+        t.routeTo.toLowerCase().includes(q) ||
+        (t.trainNumber?.toLowerCase().includes(q)) ||
+        (t.locoModel?.toLowerCase().includes(q)) ||
+        (t.locoNumber?.toLowerCase().includes(q)) ||
+        (t.notes?.toLowerCase().includes(q))
+      );
+    }
+
+    // Trip type
+    if (tripTypeFilter) result = result.filter((t) => t.tripType === tripTypeFilter);
+
+    // Locomotive model
+    if (locoFilter) result = result.filter((t) => t.locoModel === locoFilter);
+
+    // Unsynced only
+    if (unsyncedOnly) result = result.filter((t) => !t.syncedAt);
+
+    // Multi-section only (sectionCount > 1)
+    if (multiSectionOnly) result = result.filter((t) => (t.sectionCount ?? 1) > 1);
+
+    return result;
+  }, [trips, period, search, tripTypeFilter, locoFilter, unsyncedOnly, multiSectionOnly]);
 
   const totalMinutes = useMemo(
     () => filtered.reduce((sum, t) => sum + (t.durationMinutes ?? 0), 0),
     [filtered],
   );
+
+  // Unique loco models across ALL trips (not filtered) — used to decide whether to show the chip row
+  const locoModels = useMemo(() => {
+    const models = new Set<string>();
+    for (const t of trips) {
+      if (t.locoModel) models.add(t.locoModel);
+    }
+    return Array.from(models).sort();
+  }, [trips]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   async function handleExport() {
     setExporting(true);
@@ -160,6 +227,8 @@ export default function TripsScreen() {
       ],
     );
   }
+
+  // ── Render item ─────────────────────────────────────────────────────────────
 
   function renderItem({ item }: { item: LocalTrip }) {
     const elec = computeElec(item);
@@ -204,8 +273,21 @@ export default function TripsScreen() {
     );
   }
 
+  // ── Empty text ──────────────────────────────────────────────────────────────
+
+  const emptyText = useMemo(() => {
+    if (search.trim()) return `Нет поездок по запросу «${search.trim()}»`;
+    if (hasActiveFilters) return 'Нет поездок по выбранным фильтрам';
+    if (period === 'ALL') return 'Поездок нет. Добавьте первую!';
+    return 'Нет поездок за выбранный период';
+  }, [search, hasActiveFilters, period]);
+
+  // ── JSX ─────────────────────────────────────────────────────────────────────
+
   return (
     <View style={s.screen}>
+
+      {/* Header row */}
       <View style={s.topRow}>
         <Text style={s.header}>История поездок</Text>
         <TouchableOpacity
@@ -220,8 +302,28 @@ export default function TripsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Фильтры периода */}
-      <View style={s.filterRow}>
+      {/* Search input */}
+      <View style={s.searchRow}>
+        <TextInput
+          style={s.searchInput}
+          placeholder="Поиск по маршруту, локомотиву, заметкам..."
+          placeholderTextColor="#475569"
+          value={search}
+          onChangeText={setSearch}
+          returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+        />
+      </View>
+
+      {/* Period chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.chipScrollView}
+        contentContainerStyle={s.chipRow}
+      >
         {PERIOD_LABELS.map((p) => (
           <TouchableOpacity
             key={p.value}
@@ -234,9 +336,98 @@ export default function TripsScreen() {
             </Text>
           </TouchableOpacity>
         ))}
+      </ScrollView>
+
+      {/* Trip type chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.chipScrollView}
+        contentContainerStyle={s.chipRow}
+      >
+        <TouchableOpacity
+          style={[s.filterChip, tripTypeFilter === null && s.filterChipActive]}
+          onPress={() => setTripTypeFilter(null)}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.filterChipText, tripTypeFilter === null && s.filterChipTextActive]}>
+            Все типы
+          </Text>
+        </TouchableOpacity>
+        {TRIP_TYPES.map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={[s.filterChip, tripTypeFilter === t && s.filterChipActive]}
+            onPress={() => setTripTypeFilter(tripTypeFilter === t ? null : t)}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.filterChipText, tripTypeFilter === t && s.filterChipTextActive]}>
+              {TripTypeLabelMap[t]}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Locomotive model chips — only when 2+ distinct models recorded */}
+      {locoModels.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.chipScrollView}
+          contentContainerStyle={s.chipRow}
+        >
+          <TouchableOpacity
+            style={[s.filterChip, locoFilter === null && s.filterChipActive]}
+            onPress={() => setLocoFilter(null)}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.filterChipText, locoFilter === null && s.filterChipTextActive]}>
+              Все лок.
+            </Text>
+          </TouchableOpacity>
+          {locoModels.map((model) => (
+            <TouchableOpacity
+              key={model}
+              style={[s.filterChip, locoFilter === model && s.filterChipActive]}
+              onPress={() => setLocoFilter(locoFilter === model ? null : model)}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.filterChipText, locoFilter === model && s.filterChipTextActive]}>
+                {model}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Toggle row: unsynced, multi-section, clear */}
+      <View style={s.toggleRow}>
+        <TouchableOpacity
+          style={[s.toggleChip, unsyncedOnly && s.toggleChipActive]}
+          onPress={() => setUnsyncedOnly((v) => !v)}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.toggleChipText, unsyncedOnly && s.toggleChipTextActive]}>
+            Не синхр.
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.toggleChip, multiSectionOnly && s.toggleChipActive]}
+          onPress={() => setMultiSectionOnly((v) => !v)}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.toggleChipText, multiSectionOnly && s.toggleChipTextActive]}>
+            Много секций
+          </Text>
+        </TouchableOpacity>
+        {hasActiveFilters && (
+          <TouchableOpacity style={s.clearBtn} onPress={clearFilters} activeOpacity={0.75}>
+            <Text style={s.clearBtnText}>Сбросить</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Итоговая строка */}
+      {/* Summary row */}
       {filtered.length > 0 && (
         <View style={s.summary}>
           <Text style={s.summaryText}>
@@ -247,6 +438,7 @@ export default function TripsScreen() {
         </View>
       )}
 
+      {/* List */}
       {isLoading ? (
         <ActivityIndicator color="#3b82f6" style={{ marginTop: 40 }} />
       ) : (
@@ -255,18 +447,17 @@ export default function TripsScreen() {
           keyExtractor={(t) => t.localId ?? t.id}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 100 }}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            <Text style={s.empty}>
-              {period === 'ALL'
-                ? 'Поездок нет. Добавьте первую!'
-                : 'Нет поездок за выбранный период'}
-            </Text>
+            <Text style={s.empty}>{emptyText}</Text>
           }
         />
       )}
     </View>
   );
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function pluralTrips(n: number): string {
   const mod10 = n % 10;
@@ -276,12 +467,14 @@ function pluralTrips(n: number): string {
   return 'поездок';
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#0f172a', padding: 16 },
 
   topRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginTop: 48, marginBottom: 12,
+    alignItems: 'center', marginTop: 48, marginBottom: 10,
   },
   header: { color: '#f1f5f9', fontSize: 24, fontWeight: 'bold' },
   exportBtn: {
@@ -290,8 +483,17 @@ const s = StyleSheet.create({
   },
   exportBtnText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
 
-  // Фильтры
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  // Search
+  searchRow: { marginBottom: 10 },
+  searchInput: {
+    backgroundColor: '#1e293b', color: '#f1f5f9', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 14,
+    borderWidth: 1, borderColor: '#334155',
+  },
+
+  // Chip rows (scrollable)
+  chipScrollView: { flexGrow: 0, marginBottom: 8 },
+  chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
     backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
@@ -300,15 +502,30 @@ const s = StyleSheet.create({
   filterChipText: { color: '#64748b', fontSize: 13 },
   filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
-  // Итоги
+  // Toggle chips + clear
+  toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
+  toggleChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+  },
+  toggleChipActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  toggleChipText: { color: '#64748b', fontSize: 12 },
+  toggleChipTextActive: { color: '#0f172a', fontWeight: '600' },
+  clearBtn: {
+    marginLeft: 'auto', paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, borderColor: '#ef4444',
+  },
+  clearBtnText: { color: '#ef4444', fontSize: 12 },
+
+  // Summary row
   summary: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginBottom: 12, paddingHorizontal: 2,
+    marginBottom: 10, paddingHorizontal: 2,
   },
   summaryText: { color: '#94a3b8', fontSize: 13 },
   summaryDot: { color: '#334155', fontSize: 13 },
 
-  // Карточка
+  // Cards
   card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 10 },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between',

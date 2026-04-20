@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { authApi } from '@/services/api.service';
@@ -32,10 +33,20 @@ export default function LoginScreen() {
     }
   }
 
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+
   return (
-    <ScrollView contentContainerStyle={s.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+    <ScrollView
+      contentContainerStyle={s.container}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={s.title}>RailCrew</Text>
       <Text style={s.subtitle}>Учет поездок и зарплаты</Text>
+      <Text style={s.apiHint} numberOfLines={1}>API: {apiUrl}</Text>
 
       <TextInput
         style={s.input}
@@ -80,6 +91,7 @@ export default function LoginScreen() {
       </TouchableOpacity>
       <Text style={s.demoHint}>Данные сохраняются только на устройстве</Text>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -106,4 +118,5 @@ const s = StyleSheet.create({
   },
   demoBtnText: { color: '#64748b', fontSize: 14 },
   demoHint: { color: '#334155', fontSize: 12, textAlign: 'center', marginTop: 8 },
+  apiHint: { color: '#1e3a5f', fontSize: 10, textAlign: 'center', marginBottom: 24 },
 });

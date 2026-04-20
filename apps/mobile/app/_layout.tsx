@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { View, Text, ScrollView } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,19 +42,29 @@ class ErrorBoundary extends React.Component<
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ ...Ionicons.font });
+  const [fontsLoaded, fontError] = useFonts({ ...Ionicons.font });
+  const [timedOut, setTimedOut] = useState(false);
+
+  const ready = fontsLoaded || !!fontError || timedOut;
 
   useEffect(() => {
-    if (fontsLoaded) {
+    const id = setTimeout(() => setTimedOut(true), 3000);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    if (ready) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded]);
+  }, [ready]);
 
-  if (!fontsLoaded) return null;
+  if (!ready) return null;
 
   return (
     <ErrorBoundary>
-      <Stack screenOptions={{ headerShown: false }} />
+      <SafeAreaProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
