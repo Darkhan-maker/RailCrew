@@ -5,6 +5,7 @@
   "scripts": {
     "dev:mobile": "pnpm --filter @railcrew/mobile start",
     "dev:api": "pnpm --filter @railcrew/api start:dev",
+    "build": "pnpm --filter @railcrew/contracts build && pnpm --filter @railcrew/api build",
     "build:contracts": "pnpm --filter @railcrew/contracts build",
     "build:api": "pnpm --filter @railcrew/api build",
     "db:setup": "pnpm --filter @railcrew/api prisma:generate && pnpm --filter @railcrew/api prisma:migrate",
