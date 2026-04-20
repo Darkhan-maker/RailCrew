@@ -1,57 +1,36 @@
-# RailCrew
-
-Мобильное приложение для локомотивных бригад (машинисты и помощники машинистов) — трекинг поездок и расчёт зарплаты.
-
-## Стек
-
-- **Monorepo**: pnpm workspaces
-- **Mobile**: Expo / React Native + TypeScript (`apps/mobile`)
-- **API**: NestJS (`apps/api`)
-- **DB**: PostgreSQL + Prisma (`apps/api/prisma`)
-- **Contracts**: Zod-схемы, общие типы и валидация (`packages/contracts`)
-
-## Структура
-
-```
-├── apps/
-│   ├── mobile/          # Expo React Native приложение
-│   │   └── src/
-│   │       ├── screens/ # Экраны (Dashboard, TripEntry, Settings и др.)
-│   │       ├── components/
-│   │       ├── hooks/
-│   │       ├── services/
-│   │       └── navigation/
-│   └── api/             # NestJS backend
-│       ├── src/
-│       └── prisma/      # Prisma schema и миграции
-├── packages/
-│   └── contracts/       # @railcrew/contracts — Zod-схемы, DTO, типы
-└── package.json         # Корневой pnpm workspace
-```
-
 ## Архитектурные правила (СТРОГО)
 
-1. **Все DTO и валидация ТОЛЬКО из `@railcrew/contracts`** — никаких параллельных или временных типов в mobile или api. Импорт: `import { ... } from '@railcrew/contracts'`
-2. **Offline-first**: локальное хранение данных, синхронизация с сервером когда есть сеть
-3. **Zod — единый источник истины** для типов и рантайм-валидации
+1. **Все DTO и валидация ТОЛЬКО из `@railcrew/contracts`** — никаких параллельных типов
+2. **Offline-first**: локальное хранение, синхронизация при наличии сети
+3. **Zod — единый источник истины** для типов и валидации
+4. **TypeScript строго**: не использовать `as Type` касты — использовать `as unknown as Type` если необходимо
+5. **PDFKit импорт**: всегда `import PDFDocument = require('pdfkit')`, не `import * as`
+6. **Prisma типы**: не кастовать Prisma результаты в кастомные типы — использовать `any` или Prisma-генерированные типы
+7. **После изменений в contracts**: перестраивать пакет перед использованием в api
 
 ## Реализованный функционал
 
-- Ввод поездок: локомотив, показания электросчётчика, автоматический расчёт ночных часов
-- Дашборд: прогресс месячной нормы часов, разбивка зарплаты
-- Экран настроек
-- Голосовой ввод поездок (regex-парсинг русского текста) — в разработке
+- Аутентификация (JWT)
+- CRUD поездок с offline-first логикой
+- Поиск и фильтры по поездкам (search, routeFrom, routeTo, дата, тип)
+- Поля электроэнергии по секциям (energy1/2/3 Start/End/Consumption)
+- Поле isPassenger
+- Экспорт в PDF и Excel (модуль export/)
+- Дашборд со сводкой и зарплатным блоком
+- Голосовой ввод (в разработке)
 
 ## Команды
 
 ```bash
-pnpm install          # Установка зависимостей
-pnpm --filter mobile dev   # Запуск мобильного приложения
-pnpm --filter api dev      # Запуск API
+pnpm install                    # Установка зависимостей
+pnpm dev:api                    # Запуск API (порт 3000)
+pnpm --filter mobile dev        # Запуск мобильного приложения
+pnpm --filter @railcrew/contracts build  # Пересборка contracts
+cd apps/api && pnpm prisma migrate deploy  # Применить миграции
 ```
 
-## Стиль ответов
+## Стиль кода
 
 - Полный код файлов, без сокращений
-- Без пояснительного текста и обзоров
-- Без списков удаления и команд verify
+- Без пояснительного текста
+- Коммиты на английском в формате feat/fix/chore
