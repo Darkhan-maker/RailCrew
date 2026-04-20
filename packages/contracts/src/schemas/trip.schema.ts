@@ -46,6 +46,16 @@ export const TripSchema = z.object({
   handoverDate: ISODate.nullish(),
   handoverTime: HHmm.nullish(),
   sectionCount: z.number().int().nullish(),
+  isPassenger: z.boolean().nullish(),
+  energy1Start: z.number().nullish(),
+  energy1End: z.number().nullish(),
+  energy1Consumption: z.number().nullish(),
+  energy2Start: z.number().nullish(),
+  energy2End: z.number().nullish(),
+  energy2Consumption: z.number().nullish(),
+  energy3Start: z.number().nullish(),
+  energy3End: z.number().nullish(),
+  energy3Consumption: z.number().nullish(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 
@@ -72,6 +82,16 @@ export const CreateTripDtoSchema = z.object({
   handoverDate: ISODate.optional(),
   handoverTime: HHmm.optional(),
   sectionCount: z.number().int().optional(),
+  isPassenger: z.boolean().optional(),
+  energy1Start: z.number().optional(),
+  energy1End: z.number().optional(),
+  energy1Consumption: z.number().optional(),
+  energy2Start: z.number().optional(),
+  energy2End: z.number().optional(),
+  energy2Consumption: z.number().optional(),
+  energy3Start: z.number().optional(),
+  energy3End: z.number().optional(),
+  energy3Consumption: z.number().optional(),
 });
 export type CreateTripDto = z.infer<typeof CreateTripDtoSchema>;
 
