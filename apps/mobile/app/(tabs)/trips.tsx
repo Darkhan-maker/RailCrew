@@ -503,7 +503,7 @@ const s = StyleSheet.create({
   filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
   // Toggle chips + clear
-  toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' },
   toggleChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
@@ -512,7 +512,7 @@ const s = StyleSheet.create({
   toggleChipText: { color: '#64748b', fontSize: 12 },
   toggleChipTextActive: { color: '#0f172a', fontWeight: '600' },
   clearBtn: {
-    marginLeft: 'auto', paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 20, borderWidth: 1, borderColor: '#ef4444',
   },
   clearBtnText: { color: '#ef4444', fontSize: 12 },
