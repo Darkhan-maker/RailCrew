@@ -85,6 +85,18 @@ model Trip {
   handoverDate   String?    // YYYY-MM-DD
   handoverTime   String?    // HH:mm
   sectionCount   Int?
+  isPassenger    Boolean?
+
+  // Energy meter fields
+  energy1Start       Float?
+  energy1End         Float?
+  energy1Consumption Float?
+  energy2Start       Float?
+  energy2End         Float?
+  energy2Consumption Float?
+  energy3Start       Float?
+  energy3End         Float?
+  energy3Consumption Float?
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   voiceInputs VoiceInput[]

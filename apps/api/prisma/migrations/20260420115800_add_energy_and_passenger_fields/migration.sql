@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "trips" ADD COLUMN     "isPassenger" BOOLEAN,
+ADD COLUMN     "energy1Start" DOUBLE PRECISION,
+ADD COLUMN     "energy1End" DOUBLE PRECISION,
+ADD COLUMN     "energy1Consumption" DOUBLE PRECISION,
+ADD COLUMN     "energy2Start" DOUBLE PRECISION,
+ADD COLUMN     "energy2End" DOUBLE PRECISION,
+ADD COLUMN     "energy2Consumption" DOUBLE PRECISION,
+ADD COLUMN     "energy3Start" DOUBLE PRECISION,
+ADD COLUMN     "energy3End" DOUBLE PRECISION,
+ADD COLUMN     "energy3Consumption" DOUBLE PRECISION;
