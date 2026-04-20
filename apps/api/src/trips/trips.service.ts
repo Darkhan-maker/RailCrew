@@ -14,12 +14,24 @@ export class TripsService {
   }
 
   async findAll(userId: string, query: TripQuery): Promise<TripListResponse> {
-    const where = {
+    const where: Record<string, unknown> = {
       userId,
       ...(query.from && { date: { gte: query.from } }),
       ...(query.to && { date: { lte: query.to } }),
       ...(query.tripType && { tripType: query.tripType }),
       ...(query.status && { status: query.status }),
+      ...(query.routeFrom && { routeFrom: { contains: query.routeFrom, mode: 'insensitive' } }),
+      ...(query.routeTo && { routeTo: { contains: query.routeTo, mode: 'insensitive' } }),
+      ...(query.search && {
+        OR: [
+          { routeFrom: { contains: query.search, mode: 'insensitive' } },
+          { routeTo: { contains: query.search, mode: 'insensitive' } },
+          { trainNumber: { contains: query.search, mode: 'insensitive' } },
+          { locoModel: { contains: query.search, mode: 'insensitive' } },
+          { locoNumber: { contains: query.search, mode: 'insensitive' } },
+          { notes: { contains: query.search, mode: 'insensitive' } },
+        ],
+      }),
     };
 
     const [items, total] = await Promise.all([
