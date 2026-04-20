@@ -1,41 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { FastifyReply } from 'fastify';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { TripTypeLabelMap } from '@railcrew/contracts';
 
-type TripRecord = {
-  id: string;
-  routeFrom: string;
-  routeTo: string;
-  date: string;
-  endDate: string | null;
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
-  tripType: string;
-  notes: string | null;
-  trainNumber: string | null;
-  trainWeight: number | null;
-  axleCount: number | null;
-  locoModel: string | null;
-  locoNumber: string | null;
-  appearanceDate: string | null;
-  appearanceTime: string | null;
-  handoverDate: string | null;
-  handoverTime: string | null;
-  energy1Start: number | null;
-  energy1End: number | null;
-  energy1Consumption: number | null;
-  energy2Start: number | null;
-  energy2End: number | null;
-  energy2Consumption: number | null;
-  energy3Start: number | null;
-  energy3End: number | null;
-  energy3Consumption: number | null;
-  isPassenger: boolean | null;
-};
+type TripRecord = any;
 
 function formatDur(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -70,13 +40,13 @@ export class ExportService {
     return this.prisma.trip.findMany({
       where: { userId, date: { gte: from, lte: to } },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    }) as Promise<TripRecord[]>;
+    }) as unknown as Promise<TripRecord[]>;
   }
 
   private async getOneTrip(userId: string, id: string): Promise<TripRecord> {
     const trip = await this.prisma.trip.findFirst({ where: { id, userId } });
     if (!trip) throw new NotFoundException('Поездка не найдена');
-    return trip as TripRecord;
+    return trip as unknown as TripRecord;
   }
 
   async exportPeriodPdf(userId: string, from: string, to: string, reply: FastifyReply): Promise<void> {
