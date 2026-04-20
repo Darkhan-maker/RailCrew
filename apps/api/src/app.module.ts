@@ -7,6 +7,7 @@ import { TripsModule } from './trips/trips.module';
 import { VoiceModule } from './voice/voice.module';
 import { SalaryModule } from './salary/salary.module';
 import { SummaryModule } from './summary/summary.module';
+import { ExportModule } from './export/export.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { SummaryModule } from './summary/summary.module';
     VoiceModule,
     SalaryModule,
     SummaryModule,
+    ExportModule,
   ],
 })
 export class AppModule {}

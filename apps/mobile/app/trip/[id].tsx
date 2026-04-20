@@ -8,8 +8,10 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useTripsStore } from '@/store/trips.store';
-import { tripsApi } from '@/services/api.service';
+import { tripsApi, exportApi } from '@/services/api.service';
 import { LocalTrip, LocalCreateTripDto } from '@/services/storage.service';
 import { TripType, TripTypeLabelMap, UpdateTripDtoSchema } from '@railcrew/contracts';
 import { formatDuration, formatDateRu } from '@/utils/date';
@@ -54,6 +56,7 @@ export default function TripDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Partial<LocalTrip>>({});
   const [pickerMode, setPickerMode] = useState<PickerMode>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const local = trips.find((t) => t.id === id || t.localId === id);
@@ -177,6 +180,34 @@ export default function TripDetailScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleExportPress() {
+    if (!trip?.id) {
+      Alert.alert('Экспорт недоступен', 'Поездка ещё не синхронизирована с сервером.');
+      return;
+    }
+    Alert.alert('Экспорт поездки', 'Выберите формат', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'PDF',
+        onPress: async () => {
+          setExporting(true);
+          try {
+            const data = await exportApi.downloadTripPdf(trip.id!);
+            const path = `${FileSystem.cacheDirectory}trip-${trip.id}.pdf`;
+            await FileSystem.writeAsStringAsync(path, Buffer.from(data).toString('base64'), {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+          } catch {
+            Alert.alert('Ошибка', 'Не удалось экспортировать поездку');
+          } finally {
+            setExporting(false);
+          }
+        },
+      },
+    ]);
   }
 
   function handleDeletePress() {
@@ -407,6 +438,17 @@ export default function TripDetailScreen() {
             activeOpacity={0.75}
           >
             <Text style={s.duplicateBtnText}>Дублировать поездку</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={s.exportBtn}
+            onPress={handleExportPress}
+            disabled={exporting}
+            activeOpacity={0.75}
+          >
+            {exporting
+              ? <ActivityIndicator color="#3b82f6" />
+              : <Text style={s.exportBtnText}>Экспорт (PDF)</Text>}
           </TouchableOpacity>
         </>
       ) : (
@@ -769,9 +811,15 @@ const s = StyleSheet.create({
 
   duplicateBtn: {
     borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 14,
-    alignItems: 'center', marginBottom: 40,
+    alignItems: 'center', marginBottom: 10,
   },
   duplicateBtnText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+
+  exportBtn: {
+    borderWidth: 1, borderColor: '#1d4ed8', borderRadius: 12, padding: 14,
+    alignItems: 'center', marginBottom: 40,
+  },
+  exportBtnText: { color: '#3b82f6', fontSize: 15, fontWeight: '600' },
 
   iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   iosSheet: { backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },

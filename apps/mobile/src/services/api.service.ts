@@ -63,6 +63,16 @@ export const summaryApi = {
     http.get<Summary>('/summary', { params: query }).then((r) => r.data),
 };
 
+// Export
+export const exportApi = {
+  downloadPeriodPdf: (from: string, to: string) =>
+    http.get<ArrayBuffer>('/export/trips/pdf', { params: { from, to }, responseType: 'arraybuffer' }).then((r) => r.data),
+  downloadPeriodXlsx: (from: string, to: string) =>
+    http.get<ArrayBuffer>('/export/trips/xlsx', { params: { from, to }, responseType: 'arraybuffer' }).then((r) => r.data),
+  downloadTripPdf: (id: string) =>
+    http.get<ArrayBuffer>(`/export/trips/${id}/pdf`, { responseType: 'arraybuffer' }).then((r) => r.data),
+};
+
 // Salary rules
 export const salaryApi = {
   create: (dto: CreateSalaryRuleDto) =>

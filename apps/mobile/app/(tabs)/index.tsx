@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useTripsStore } from '@/store/trips.store';
 import { useAuthStore } from '@/store/auth.store';
 import {
@@ -10,6 +12,7 @@ import {
 } from '@/services/storage.service';
 import { TripTypeLabelMap } from '@railcrew/contracts';
 import { formatDuration } from '@/utils/date';
+import { exportApi } from '@/services/api.service';
 
 type PeriodFilter = 'DAY' | 'WEEK' | 'MONTH';
 
@@ -111,6 +114,7 @@ export default function DashboardScreen() {
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
   const [salaryRule, setSalaryRule] = useState<LocalSalaryRule | null>(null);
   const [settings, setSettings] = useState<LocalSettings | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadLocal();
@@ -206,9 +210,71 @@ export default function DashboardScreen() {
 
   const greeting = profile?.firstName ? `Привет, ${profile.firstName}` : 'Сводка';
 
+  const { from: monthFrom, to: monthTo } = getPeriodBounds('MONTH');
+
+  function handleExportMonth(format: 'pdf' | 'xlsx') {
+    Alert.alert(
+      'Экспорт за месяц',
+      `Скачать отчёт за ${monthFrom} — ${monthTo} в формате ${format.toUpperCase()}?`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Скачать',
+          onPress: async () => {
+            setExporting(true);
+            try {
+              if (format === 'pdf') {
+                const data = await exportApi.downloadPeriodPdf(monthFrom, monthTo);
+                const path = `${FileSystem.cacheDirectory}trips-${monthFrom}-${monthTo}.pdf`;
+                await FileSystem.writeAsStringAsync(path, Buffer.from(data).toString('base64'), {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+                await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+              } else {
+                const data = await exportApi.downloadPeriodXlsx(monthFrom, monthTo);
+                const path = `${FileSystem.cacheDirectory}trips-${monthFrom}-${monthTo}.xlsx`;
+                await FileSystem.writeAsStringAsync(path, Buffer.from(data).toString('base64'), {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+                await Sharing.shareAsync(path, {
+                  mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  UTI: 'org.openxmlformats.spreadsheetml.sheet',
+                });
+              }
+            } catch {
+              Alert.alert('Ошибка', 'Не удалось экспортировать данные');
+            } finally {
+              setExporting(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function handleExportPress() {
+    Alert.alert('Экспорт за месяц', 'Выберите формат', [
+      { text: 'Отмена', style: 'cancel' },
+      { text: 'PDF', onPress: () => handleExportMonth('pdf') },
+      { text: 'Excel', onPress: () => handleExportMonth('xlsx') },
+    ]);
+  }
+
   return (
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 100 }}>
-      <Text style={s.greeting}>{greeting}</Text>
+      <View style={s.greetingRow}>
+        <Text style={s.greeting}>{greeting}</Text>
+        <TouchableOpacity
+          style={s.exportMonthBtn}
+          onPress={handleExportPress}
+          disabled={exporting}
+          activeOpacity={0.75}
+        >
+          {exporting
+            ? <ActivityIndicator color={C.blue} size="small" />
+            : <Text style={s.exportMonthBtnText}>Экспорт за месяц</Text>}
+        </TouchableOpacity>
+      </View>
 
       {/* Period tabs */}
       <View style={s.periodRow}>
@@ -522,10 +588,18 @@ function TripRow({ trip, last }: { trip: LocalTrip; last: boolean }) {
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
 
-  greeting: {
-    color: C.textPrimary, fontSize: 22, fontWeight: '700',
+  greetingRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     marginTop: 48, marginBottom: 12,
   },
+  greeting: {
+    color: C.textPrimary, fontSize: 22, fontWeight: '700', flex: 1,
+  },
+  exportMonthBtn: {
+    borderWidth: 1, borderColor: C.blue, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 7, marginLeft: 12,
+  },
+  exportMonthBtnText: { color: C.blue, fontSize: 13, fontWeight: '600' },
 
   // Period
   periodRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
