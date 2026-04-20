@@ -15,8 +15,8 @@ export class ExportController {
   @Get('trips/pdf')
   async exportPeriodPdf(
     @CurrentUser() user: JwtUser,
-    @Query('from') from: string,
-    @Query('to') to: string,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
     @Res() reply: FastifyReply,
   ) {
     return this.exportService.exportPeriodPdf(user.userId, from, to, reply);
@@ -25,8 +25,8 @@ export class ExportController {
   @Get('trips/xlsx')
   async exportPeriodXlsx(
     @CurrentUser() user: JwtUser,
-    @Query('from') from: string,
-    @Query('to') to: string,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
     @Res() reply: FastifyReply,
   ) {
     return this.exportService.exportPeriodXlsx(user.userId, from, to, reply);
@@ -39,5 +39,14 @@ export class ExportController {
     @Res() reply: FastifyReply,
   ) {
     return this.exportService.exportOneTripPdf(user.userId, id, reply);
+  }
+
+  @Get('trips/:id/xlsx')
+  async exportOneTripXlsx(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Res() reply: FastifyReply,
+  ) {
+    return this.exportService.exportOneTripXlsx(user.userId, id, reply);
   }
 }

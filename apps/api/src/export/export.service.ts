@@ -5,8 +5,6 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 import { TripTypeLabelMap } from '@railcrew/contracts';
 
-type TripRecord = any;
-
 function formatDur(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -19,7 +17,7 @@ function sectionConsumption(start: number | null, end: number | null, stored: nu
   return null;
 }
 
-function totalEnergy(trip: TripRecord): number | null {
+function totalEnergy(trip: any): number | null {
   const sections = [
     sectionConsumption(trip.energy1Start, trip.energy1End, trip.energy1Consumption),
     sectionConsumption(trip.energy2Start, trip.energy2End, trip.energy2Consumption),
@@ -36,20 +34,29 @@ function tripTypeLabel(type: string): string {
 export class ExportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getTripsForPeriod(userId: string, from: string, to: string): Promise<TripRecord[]> {
+  private async getTripsForPeriod(userId: string, from?: string, to?: string): Promise<any[]> {
     return this.prisma.trip.findMany({
-      where: { userId, date: { gte: from, lte: to } },
+      where: {
+        userId,
+        ...(from && to
+          ? { date: { gte: from, lte: to } }
+          : from
+            ? { date: { gte: from } }
+            : to
+              ? { date: { lte: to } }
+              : {}),
+      },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    }) as unknown as Promise<TripRecord[]>;
+    });
   }
 
-  private async getOneTrip(userId: string, id: string): Promise<TripRecord> {
+  private async getOneTrip(userId: string, id: string): Promise<any> {
     const trip = await this.prisma.trip.findFirst({ where: { id, userId } });
     if (!trip) throw new NotFoundException('Поездка не найдена');
-    return trip as unknown as TripRecord;
+    return trip;
   }
 
-  async exportPeriodPdf(userId: string, from: string, to: string, reply: FastifyReply): Promise<void> {
+  async exportPeriodPdf(userId: string, from: string | undefined, to: string | undefined, reply: FastifyReply): Promise<void> {
     const trips = await this.getTripsForPeriod(userId, from, to);
 
     const chunks: Buffer[] = [];
@@ -59,7 +66,8 @@ export class ExportService {
     await new Promise<void>((resolve) => {
       doc.on('end', () => resolve());
 
-      doc.fontSize(16).text(`Отчёт по поездкам: ${from} — ${to}`, { align: 'center' });
+      const periodLabel = from || to ? `${from ?? '...'} — ${to ?? '...'}` : 'Все периоды';
+      doc.fontSize(16).text(`Отчёт по поездкам: ${periodLabel}`, { align: 'center' });
       doc.moveDown(0.5);
       doc.fontSize(11).text(`Всего поездок: ${trips.length}`, { align: 'center' });
       doc.moveDown(1);
@@ -78,9 +86,10 @@ export class ExportService {
     });
 
     const buffer = Buffer.concat(chunks);
+    const fileTag = from || to ? `${from ?? ''}-${to ?? ''}` : 'all';
     reply
       .header('Content-Type', 'application/pdf')
-      .header('Content-Disposition', `attachment; filename="trips-${from}-${to}.pdf"`)
+      .header('Content-Disposition', `attachment; filename="trips-${fileTag}.pdf"`)
       .send(buffer);
   }
 
@@ -104,7 +113,7 @@ export class ExportService {
       .send(buffer);
   }
 
-  private renderTripBlock(doc: InstanceType<typeof PDFDocument>, trip: TripRecord): void {
+  private renderTripBlock(doc: PDFKit.PDFDocument, trip: any): void {
     doc.fontSize(13).fillColor('#000000').text(`${trip.routeFrom} — ${trip.routeTo}`);
     doc.fontSize(10).fillColor('#555555').text(
       `${trip.date}${trip.endDate && trip.endDate !== trip.date ? ` → ${trip.endDate}` : ''}  ·  ${tripTypeLabel(trip.tripType)}`,
@@ -152,9 +161,26 @@ export class ExportService {
     doc.fillColor('#000000');
   }
 
-  async exportPeriodXlsx(userId: string, from: string, to: string, reply: FastifyReply): Promise<void> {
-    const trips = await this.getTripsForPeriod(userId, from, to);
+  async exportOneTripXlsx(userId: string, id: string, reply: FastifyReply): Promise<void> {
+    const trip = await this.getOneTrip(userId, id);
+    const buffer = await this.buildXlsxBuffer([trip]);
+    reply
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Disposition', `attachment; filename="trip-${id}.xlsx"`)
+      .send(buffer);
+  }
 
+  async exportPeriodXlsx(userId: string, from: string | undefined, to: string | undefined, reply: FastifyReply): Promise<void> {
+    const trips = await this.getTripsForPeriod(userId, from, to);
+    const buffer = await this.buildXlsxBuffer(trips);
+    const fileTag = from || to ? `${from ?? ''}-${to ?? ''}` : 'all';
+    reply
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Disposition', `attachment; filename="trips-${fileTag}.xlsx"`)
+      .send(buffer);
+  }
+
+  private async buildXlsxBuffer(trips: any[]): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Поездки');
 
@@ -217,10 +243,6 @@ export class ExportService {
       });
     }
 
-    const buffer = await wb.xlsx.writeBuffer() as Buffer;
-    reply
-      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-      .header('Content-Disposition', `attachment; filename="trips-${from}-${to}.xlsx"`)
-      .send(buffer);
+    return wb.xlsx.writeBuffer() as unknown as Promise<Buffer>;
   }
 }

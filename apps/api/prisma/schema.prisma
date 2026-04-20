@@ -98,25 +98,10 @@ model Trip {
   energy3End         Float?
   energy3Consumption Float?
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  voiceInputs VoiceInput[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
   @@map("trips")
-}
-
-model VoiceInput {
-  id           String   @id @default(uuid())
-  userId       String
-  tripId       String?
-  rawText      String
-  parsedFields Json
-  confidence   Float    @default(0)
-  createdAt    DateTime @default(now())
-
-  trip Trip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
-
-  @@map("voice_inputs")
 }
 
 model SalaryRule {

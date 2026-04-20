@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   LoginDto, RegisterDto, AuthResponse,
   CreateTripDto, UpdateTripDto, TripQuery, TripListResponse, Trip,
-  VoiceInputDto, VoiceRecognitionResult,
   SummaryQuery, Summary,
   CreateSalaryRuleDto, UpdateSalaryRuleDto, SalaryRule,
 } from '@railcrew/contracts';
@@ -49,12 +48,6 @@ export const tripsApi = {
     http.patch<Trip>(`/trips/${id}`, dto).then((r) => r.data),
   remove: (id: string) =>
     http.delete(`/trips/${id}`).then((r) => r.data),
-};
-
-// Voice
-export const voiceApi = {
-  parse: (dto: VoiceInputDto) =>
-    http.post<VoiceRecognitionResult>('/voice/parse', dto).then((r) => r.data),
 };
 
 // Summary
