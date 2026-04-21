@@ -33,7 +33,7 @@ export default function LoginScreen() {
     }
   }
 
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'https://railcrewapi-production.up.railway.app/api/v1';
 
   return (
     <KeyboardAvoidingView
