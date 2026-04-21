@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "pnpm --filter @railcrew/contracts build && nest build",
-    "start": "node dist/main",
+    "build": "prisma generate && cd ../.. && pnpm --filter @railcrew/contracts build && cd apps/api && nest build",
+    "start": "prisma migrate deploy && node dist/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "typecheck": "tsc --noEmit",
