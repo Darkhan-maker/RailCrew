@@ -7,7 +7,7 @@ import {
   CreateSalaryRuleDto, UpdateSalaryRuleDto, SalaryRule,
 } from '@railcrew/contracts';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://railcrewapi-production.up.railway.app/api/v1';
 
 export const http = axios.create({ baseURL: BASE_URL, timeout: 8000 });
 http.interceptors.response.use(
