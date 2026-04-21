@@ -14,11 +14,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "kz.railcrew.mvp",
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Требуется для голосового ввода данных о поездке",
-        "NSSpeechRecognitionUsageDescription": "Требуется для распознавания голосового ввода"
-      }
+      "bundleIdentifier": "kz.railcrew.mvp"
     },
     "android": {
       "package": "kz.railcrew.mvp",
@@ -26,8 +22,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
-      },
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      }
     },
     "plugins": ["expo-router"],
     "scheme": "railcrew"
