@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0f172a"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "kz.railcrew.mvp"
@@ -24,7 +26,17 @@
         "backgroundColor": "#0f172a"
       }
     },
-    "plugins": ["expo-router"],
-    "scheme": "railcrew"
+    "plugins": [
+      "expo-router"
+    ],
+    "scheme": "railcrew",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "77c32677-ed63-4339-9ca8-5ff75b01d8ed"
+      }
+    }
   }
 }
