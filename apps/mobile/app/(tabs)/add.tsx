@@ -8,7 +8,6 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { format } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTripsStore } from '@/store/trips.store';
-import { voiceService } from '@/services/voice.service';
 import {
   localRoutesStorage, LocalRoute,
   localSettingsStorage, LocalSettings,
@@ -176,7 +175,6 @@ export default function AddTripScreen() {
   const [userNotes, setUserNotes] = useState(params.notes ?? '');
   const [voiceText, setVoiceText] = useState('');
   const [voiceDraft, setVoiceDraft] = useState<Partial<CreateTripDto> | null>(null);
-  const [draftSource, setDraftSource] = useState<'api' | 'local' | null>(null);
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pickerMode, setPickerMode] = useState<PickerMode>(null);
@@ -252,19 +250,12 @@ export default function AddTripScreen() {
     setRoutes((prev) => prev.filter((r) => r.id !== id));
   }
 
-  async function handleVoiceParse() {
+  function handleVoiceParse() {
     if (!voiceText.trim()) return;
     setParsing(true);
     setVoiceDraft(null);
-    setDraftSource(null);
     try {
-      const result = await voiceService.parseText(voiceText);
-      setVoiceDraft(result.parsedFields as Partial<CreateTripDto>);
-      setDraftSource('api');
-      if (result.ambiguities.length > 0) Alert.alert('Уточните данные', result.ambiguities.join('\n'));
-    } catch {
       setVoiceDraft(parseTextLocally(voiceText));
-      setDraftSource('local');
     } finally {
       setParsing(false);
     }
@@ -273,7 +264,7 @@ export default function AddTripScreen() {
   function applyDraft() {
     if (!voiceDraft) return;
     setFields((f) => ({ ...f, ...voiceDraft }));
-    setVoiceDraft(null); setDraftSource(null); setVoiceText('');
+    setVoiceDraft(null); setVoiceText('');
   }
 
   function handlePickerChange(_: DateTimePickerEvent, selected?: Date) {
@@ -448,7 +439,6 @@ export default function AddTripScreen() {
           <View style={s.draft}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
               <Text style={{ color: '#93c5fd', fontSize: 13, fontWeight: '600' }}>Распознано</Text>
-              <Text style={s.draftBadge}>{draftSource === 'api' ? 'сервер' : 'локально'}</Text>
             </View>
             {(voiceDraft.routeFrom || voiceDraft.routeTo) && (
               <DraftRow label="Маршрут" value={[voiceDraft.routeFrom, voiceDraft.routeTo].filter(Boolean).join(' → ')} />
@@ -461,7 +451,7 @@ export default function AddTripScreen() {
               <TouchableOpacity style={s.draftApply} onPress={applyDraft}>
                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Применить</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.draftDiscard} onPress={() => { setVoiceDraft(null); setDraftSource(null); }}>
+              <TouchableOpacity style={s.draftDiscard} onPress={() => { setVoiceDraft(null); }}>
                 <Text style={{ color: '#64748b', fontSize: 13 }}>Отклонить</Text>
               </TouchableOpacity>
             </View>
