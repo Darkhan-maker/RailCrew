@@ -3,6 +3,14 @@ import { z } from 'zod';
 export const TripTypeSchema = z.enum(['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN']);
 export type TripType = z.infer<typeof TripTypeSchema>;
 
+export const AppearanceTypeSchema = z.enum(['HOME', 'TURNAROUND']);
+export type AppearanceType = z.infer<typeof AppearanceTypeSchema>;
+
+export const AppearanceTypeLabelMap: Record<AppearanceType, string> = {
+  HOME: 'Явка из дома',
+  TURNAROUND: 'Явка из пункта оборота',
+};
+
 export const TripTypeLabelMap: Record<TripType, string> = {
   FREIGHT: 'Грузовой',
   PASSENGER: 'Пассажирский',
@@ -56,6 +64,16 @@ export const TripSchema = z.object({
   energy3Start: z.number().nullish(),
   energy3End: z.number().nullish(),
   energy3Consumption: z.number().nullish(),
+  appearanceType: AppearanceTypeSchema.nullish(),
+  lunchBreakMinutes: z.number().int().nullish(),
+  recuperation1Accepted: z.number().nullish(),
+  recuperation1Delivered: z.number().nullish(),
+  recuperation2Accepted: z.number().nullish(),
+  recuperation2Delivered: z.number().nullish(),
+  recuperation3Accepted: z.number().nullish(),
+  recuperation3Delivered: z.number().nullish(),
+  checkpointOut: z.number().nullish(),
+  checkpointIn: z.number().nullish(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 
@@ -92,6 +110,16 @@ export const CreateTripDtoSchema = z.object({
   energy3Start: z.number().optional(),
   energy3End: z.number().optional(),
   energy3Consumption: z.number().optional(),
+  appearanceType: AppearanceTypeSchema.optional(),
+  lunchBreakMinutes: z.number().int().optional(),
+  recuperation1Accepted: z.number().optional(),
+  recuperation1Delivered: z.number().optional(),
+  recuperation2Accepted: z.number().optional(),
+  recuperation2Delivered: z.number().optional(),
+  recuperation3Accepted: z.number().optional(),
+  recuperation3Delivered: z.number().optional(),
+  checkpointOut: z.number().optional(),
+  checkpointIn: z.number().optional(),
 });
 export type CreateTripDto = z.infer<typeof CreateTripDtoSchema>;
 
