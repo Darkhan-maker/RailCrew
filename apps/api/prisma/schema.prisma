@@ -20,6 +20,11 @@ enum TripType {
   DEAD_RUN
 }
 
+enum AppearanceType {
+  HOME
+  TURNAROUND
+}
+
 enum TripStatus {
   DRAFT
   CONFIRMED
@@ -97,6 +102,18 @@ model Trip {
   energy3Start       Float?
   energy3End         Float?
   energy3Consumption Float?
+
+  // New fields
+  appearanceType          AppearanceType?
+  lunchBreakMinutes       Int?
+  recuperation1Accepted   Float?
+  recuperation1Delivered  Float?
+  recuperation2Accepted   Float?
+  recuperation2Delivered  Float?
+  recuperation3Accepted   Float?
+  recuperation3Delivered  Float?
+  checkpointOut           Float?
+  checkpointIn            Float?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -13,7 +13,7 @@ import {
   localSettingsStorage, LocalSettings,
   LocalCreateTripDto,
 } from '@/services/storage.service';
-import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema } from '@railcrew/contracts';
+import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema, AppearanceType, AppearanceTypeLabelMap } from '@railcrew/contracts';
 import { todayISO } from '@/utils/date';
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
@@ -84,23 +84,23 @@ type PickerMode =
 
 type SectionMeterStr = { start: string; end: string };
 
+type SectionRecuperationStr = { accepted: string; delivered: string };
+
 type ExtendedFields = {
   trainNumber: string;
   trainWeight: string;
   axleCount: string;
   locoModel: string;
   locoNumber: string;
-  recuperationAccepted: string;
-  recuperationDelivered: string;
+  lunchBreakMinutes: string;
+  checkpointOut: string;
+  checkpointIn: string;
   passengerDepartureTime: string;
   passengerArrivalTime: string;
 };
 
 function buildNotes(userNotes: string, ext: ExtendedFields): string {
   const parts: string[] = [];
-  if (ext.recuperationAccepted || ext.recuperationDelivered) {
-    parts.push(`Рекуперация: приёмка ${ext.recuperationAccepted || '—'}, сдача ${ext.recuperationDelivered || '—'}`);
-  }
   if (ext.passengerDepartureTime || ext.passengerArrivalTime) {
     parts.push(`Пассажиром: выезд ${ext.passengerDepartureTime || '—'}, прибытие ${ext.passengerArrivalTime || '—'}`);
   }
@@ -150,8 +150,9 @@ export default function AddTripScreen() {
     axleCount: params.axleCount ?? '',
     locoModel: params.locoModel ?? '',
     locoNumber: params.locoNumber ?? '',
-    recuperationAccepted: '',
-    recuperationDelivered: '',
+    lunchBreakMinutes: '',
+    checkpointOut: '',
+    checkpointIn: '',
     passengerDepartureTime: '',
     passengerArrivalTime: '',
   });
@@ -170,6 +171,9 @@ export default function AddTripScreen() {
   const [sectionCount, setSectionCount] = useState<1 | 2 | 3>(initSectionCount);
   const [sectionMeters, setSectionMeters] = useState<SectionMeterStr[]>(
     Array.from({ length: initSectionCount }, () => ({ start: '', end: '' })),
+  );
+  const [sectionRecuperation, setSectionRecuperation] = useState<SectionRecuperationStr[]>(
+    Array.from({ length: initSectionCount }, () => ({ accepted: '', delivered: '' })),
   );
 
   const [userNotes, setUserNotes] = useState(params.notes ?? '');
@@ -208,7 +212,7 @@ export default function AddTripScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appearanceDate, appearanceTime, handoverDate, handoverTime]);
 
-  function setF(key: keyof CreateTripDto, value: string | number | TripType | undefined) {
+  function setF(key: keyof CreateTripDto, value: string | number | TripType | AppearanceType | undefined) {
     setFields((f) => ({ ...f, [key]: value }));
   }
   function setExt(key: keyof ExtendedFields, value: string) {
@@ -220,6 +224,17 @@ export default function AddTripScreen() {
     setSectionMeters((prev) =>
       Array.from({ length: count }, (_, i) => prev[i] ?? { start: '', end: '' }),
     );
+    setSectionRecuperation((prev) =>
+      Array.from({ length: count }, (_, i) => prev[i] ?? { accepted: '', delivered: '' }),
+    );
+  }
+
+  function setSectionRecup(idx: number, field: 'accepted' | 'delivered', value: string) {
+    setSectionRecuperation((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
   }
 
   function setSectionMeter(idx: number, field: 'start' | 'end', value: string) {
@@ -325,6 +340,9 @@ export default function AddTripScreen() {
 
     if (!isNumericStr(extended.trainWeight)) { Alert.alert('Ошибка данных', 'Вес поезда должен быть числом'); return; }
     if (!isNumericStr(extended.axleCount)) { Alert.alert('Ошибка данных', 'Количество осей должно быть числом'); return; }
+    if (!isNumericStr(extended.lunchBreakMinutes)) { Alert.alert('Ошибка данных', 'Обеденный перерыв должен быть числом'); return; }
+    if (!isNumericStr(extended.checkpointOut)) { Alert.alert('Ошибка данных', 'Проследование КП при выходе должно быть числом'); return; }
+    if (!isNumericStr(extended.checkpointIn)) { Alert.alert('Ошибка данных', 'Проследование КП при заходе должно быть числом'); return; }
 
     const meterErr = validateSectionMeters(sectionMeters);
     if (meterErr) { Alert.alert('Ошибка счётчиков', meterErr); return; }
@@ -351,6 +369,9 @@ export default function AddTripScreen() {
     }
 
     const sm0 = sectionMeters[0];
+    const r0 = sectionRecuperation[0];
+    const r1 = sectionRecuperation[1];
+    const r2 = sectionRecuperation[2];
     const finalDto: LocalCreateTripDto = {
       ...result.data,
       trainNumber: extended.trainNumber || undefined,
@@ -369,6 +390,15 @@ export default function AddTripScreen() {
       })),
       meterStart: sm0?.start ? parseFloat(sm0.start) : undefined,
       meterEnd: sm0?.end ? parseFloat(sm0.end) : undefined,
+      lunchBreakMinutes: extended.lunchBreakMinutes ? parseInt(extended.lunchBreakMinutes, 10) : undefined,
+      checkpointOut: extended.checkpointOut ? parseFloat(extended.checkpointOut) : undefined,
+      checkpointIn: extended.checkpointIn ? parseFloat(extended.checkpointIn) : undefined,
+      recuperation1Accepted: r0?.accepted ? parseFloat(r0.accepted) : undefined,
+      recuperation1Delivered: r0?.delivered ? parseFloat(r0.delivered) : undefined,
+      recuperation2Accepted: r1?.accepted ? parseFloat(r1.accepted) : undefined,
+      recuperation2Delivered: r1?.delivered ? parseFloat(r1.delivered) : undefined,
+      recuperation3Accepted: r2?.accepted ? parseFloat(r2.accepted) : undefined,
+      recuperation3Delivered: r2?.delivered ? parseFloat(r2.delivered) : undefined,
     };
 
     setSaving(true);
@@ -583,6 +613,21 @@ export default function AddTripScreen() {
 
       {/* ─── 4: Явка ─────────────────────────────────────── */}
       <Section title="Явка на работу" step={4}>
+        <Label>Тип явки</Label>
+        <View style={s.chipRow}>
+          {(['HOME', 'TURNAROUND'] as AppearanceType[]).map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[s.chip, fields.appearanceType === t && s.chipActive]}
+              onPress={() => setF('appearanceType', t)}
+            >
+              <Text style={[s.chipText, fields.appearanceType === t && s.chipTextActive]}>
+                {AppearanceTypeLabelMap[t]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <View style={s.row}>
           <View style={{ flex: 1.2 }}>
             <Label style={s.colLabel}>Дата явки</Label>
@@ -604,6 +649,16 @@ export default function AddTripScreen() {
             />
           </View>
         </View>
+
+        <Label>Обеденный перерыв, мин</Label>
+        <TextInput
+          style={s.input}
+          placeholder="0"
+          placeholderTextColor="#475569"
+          keyboardType="numeric"
+          value={extended.lunchBreakMinutes}
+          onChangeText={(v) => setExt('lunchBreakMinutes', v)}
+        />
       </Section>
 
       {/* ─── 5: Сдача ────────────────────────────────────── */}
@@ -677,37 +732,66 @@ export default function AddTripScreen() {
             {sectionConsumptions[i] !== null && sectionConsumptions[i]! < 0 && (
               <Text style={s.warnText}>Показание на конец меньше начального</Text>
             )}
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Label style={s.colLabel}>Рекуперация приёмка</Label>
+                <TextInput
+                  style={s.input}
+                  placeholder="кВт·ч"
+                  placeholderTextColor="#475569"
+                  keyboardType="numeric"
+                  value={sectionRecuperation[i]?.accepted ?? ''}
+                  onChangeText={(v) => setSectionRecup(i, 'accepted', v)}
+                />
+              </View>
+              <View style={{ width: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Label style={s.colLabel}>Рекуперация сдача</Label>
+                <TextInput
+                  style={s.input}
+                  placeholder="кВт·ч"
+                  placeholderTextColor="#475569"
+                  keyboardType="numeric"
+                  value={sectionRecuperation[i]?.delivered ?? ''}
+                  onChangeText={(v) => setSectionRecup(i, 'delivered', v)}
+                />
+              </View>
+            </View>
           </View>
         ))}
 
         {sectionCount > 1 && totalConsumption !== null && (
           <Text style={[s.durationText, { marginTop: 4 }]}>Итого: {totalConsumption.toFixed(0)} кВт·ч</Text>
         )}
+      </Section>
 
-        {settings?.trackElectricity && (
-          <>
-            <Label style={{ marginTop: 12 }}>Рекуперация — приёмка / сдача</Label>
-            <View style={s.row}>
-              <TextInput
-                style={[s.input, { flex: 1 }]}
-                placeholder="кВт·ч"
-                placeholderTextColor="#475569"
-                keyboardType="numeric"
-                value={extended.recuperationAccepted}
-                onChangeText={(v) => setExt('recuperationAccepted', v)}
-              />
-              <View style={{ width: 12 }} />
-              <TextInput
-                style={[s.input, { flex: 1 }]}
-                placeholder="кВт·ч"
-                placeholderTextColor="#475569"
-                keyboardType="numeric"
-                value={extended.recuperationDelivered}
-                onChangeText={(v) => setExt('recuperationDelivered', v)}
-              />
-            </View>
-          </>
-        )}
+      {/* ─── 7: Проследование КП ─────────────────────────── */}
+      <Section title="Проследование КП" step={7}>
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Label style={s.colLabel}>При выходе</Label>
+            <TextInput
+              style={s.input}
+              placeholder="0"
+              placeholderTextColor="#475569"
+              keyboardType="numeric"
+              value={extended.checkpointOut}
+              onChangeText={(v) => setExt('checkpointOut', v)}
+            />
+          </View>
+          <View style={{ width: 12 }} />
+          <View style={{ flex: 1 }}>
+            <Label style={s.colLabel}>При заходе</Label>
+            <TextInput
+              style={s.input}
+              placeholder="0"
+              placeholderTextColor="#475569"
+              keyboardType="numeric"
+              value={extended.checkpointIn}
+              onChangeText={(v) => setExt('checkpointIn', v)}
+            />
+          </View>
+        </View>
       </Section>
 
       {/* ─── Следование пассажиром ───────────────────────── */}
