@@ -13,7 +13,7 @@ import {
   localSettingsStorage, LocalSettings,
   LocalCreateTripDto,
 } from '@/services/storage.service';
-import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema } from '@railcrew/contracts';
+import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema, AppearanceType, AppearanceTypeLabelMap } from '@railcrew/contracts';
 import { todayISO } from '@/utils/date';
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
@@ -64,6 +64,7 @@ function formatDurMin(minutes: number): string {
   return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
 }
 
+
 function parseDateStr(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d);
@@ -76,14 +77,14 @@ function parseTimeStr(timeStr: string): Date {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AppearanceType = 'HOME' | 'TURNAROUND';
-
 type PickerMode =
   | 'appearanceDate' | 'appearanceTime'
   | 'handoverDate' | 'handoverTime'
   | null;
 
 type SectionMeterStr = { start: string; end: string };
+
+type SectionRecuperationStr = { accepted: string; delivered: string };
 
 type ExtendedFields = {
   trainNumber: string;
@@ -92,10 +93,10 @@ type ExtendedFields = {
   locoModel: string;
   locoNumber: string;
   lunchBreakMinutes: string;
+  checkpointOut: string;
+  checkpointIn: string;
   passengerDepartureTime: string;
   passengerArrivalTime: string;
-  checkpointExit: string;
-  checkpointEntry: string;
 };
 
 function buildNotes(userNotes: string, ext: ExtendedFields): string {
@@ -150,10 +151,10 @@ export default function AddTripScreen() {
     locoModel: params.locoModel ?? '',
     locoNumber: params.locoNumber ?? '',
     lunchBreakMinutes: '',
+    checkpointOut: '',
+    checkpointIn: '',
     passengerDepartureTime: '',
     passengerArrivalTime: '',
-    checkpointExit: '',
-    checkpointEntry: '',
   });
 
   // Work-cycle timestamps
@@ -161,9 +162,6 @@ export default function AddTripScreen() {
   const [appearanceTime, setAppearanceTime] = useState('');
   const [handoverDate, setHandoverDate] = useState(today);
   const [handoverTime, setHandoverTime] = useState('');
-
-  // Тип явки
-  const [appearanceType, setAppearanceType] = useState<AppearanceType | null>(null);
 
   // Section count + per-section electricity meters — pre-filled from duplicate params
   const initSectionCount = ((): 1 | 2 | 3 => {
@@ -174,13 +172,8 @@ export default function AddTripScreen() {
   const [sectionMeters, setSectionMeters] = useState<SectionMeterStr[]>(
     Array.from({ length: initSectionCount }, () => ({ start: '', end: '' })),
   );
-
-  // Per-section recuperation
-  const [recuperationAccept, setRecuperationAccept] = useState<string[]>(
-    Array.from({ length: initSectionCount }, () => ''),
-  );
-  const [recuperationDeliver, setRecuperationDeliver] = useState<string[]>(
-    Array.from({ length: initSectionCount }, () => ''),
+  const [sectionRecuperation, setSectionRecuperation] = useState<SectionRecuperationStr[]>(
+    Array.from({ length: initSectionCount }, () => ({ accepted: '', delivered: '' })),
   );
 
   const [userNotes, setUserNotes] = useState(params.notes ?? '');
@@ -219,7 +212,7 @@ export default function AddTripScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appearanceDate, appearanceTime, handoverDate, handoverTime]);
 
-  function setF(key: keyof CreateTripDto, value: string | number | TripType | undefined) {
+  function setF(key: keyof CreateTripDto, value: string | number | TripType | AppearanceType | undefined) {
     setFields((f) => ({ ...f, [key]: value }));
   }
   function setExt(key: keyof ExtendedFields, value: string) {
@@ -231,34 +224,23 @@ export default function AddTripScreen() {
     setSectionMeters((prev) =>
       Array.from({ length: count }, (_, i) => prev[i] ?? { start: '', end: '' }),
     );
-    setRecuperationAccept((prev) =>
-      Array.from({ length: count }, (_, i) => prev[i] ?? ''),
-    );
-    setRecuperationDeliver((prev) =>
-      Array.from({ length: count }, (_, i) => prev[i] ?? ''),
+    setSectionRecuperation((prev) =>
+      Array.from({ length: count }, (_, i) => prev[i] ?? { accepted: '', delivered: '' }),
     );
   }
 
-  function setSectionMeter(idx: number, field: 'start' | 'end', value: string) {
-    setSectionMeters((prev) => {
+  function setSectionRecup(idx: number, field: 'accepted' | 'delivered', value: string) {
+    setSectionRecuperation((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], [field]: value };
       return next;
     });
   }
 
-  function setRecupAccept(idx: number, value: string) {
-    setRecuperationAccept((prev) => {
+  function setSectionMeter(idx: number, field: 'start' | 'end', value: string) {
+    setSectionMeters((prev) => {
       const next = [...prev];
-      next[idx] = value;
-      return next;
-    });
-  }
-
-  function setRecupDeliver(idx: number, value: string) {
-    setRecuperationDeliver((prev) => {
-      const next = [...prev];
-      next[idx] = value;
+      next[idx] = { ...next[idx], [field]: value };
       return next;
     });
   }
@@ -358,6 +340,9 @@ export default function AddTripScreen() {
 
     if (!isNumericStr(extended.trainWeight)) { Alert.alert('Ошибка данных', 'Вес поезда должен быть числом'); return; }
     if (!isNumericStr(extended.axleCount)) { Alert.alert('Ошибка данных', 'Количество осей должно быть числом'); return; }
+    if (!isNumericStr(extended.lunchBreakMinutes)) { Alert.alert('Ошибка данных', 'Обеденный перерыв должен быть числом'); return; }
+    if (!isNumericStr(extended.checkpointOut)) { Alert.alert('Ошибка данных', 'Проследование КП при выходе должно быть числом'); return; }
+    if (!isNumericStr(extended.checkpointIn)) { Alert.alert('Ошибка данных', 'Проследование КП при заходе должно быть числом'); return; }
 
     const meterErr = validateSectionMeters(sectionMeters);
     if (meterErr) { Alert.alert('Ошибка счётчиков', meterErr); return; }
@@ -384,6 +369,9 @@ export default function AddTripScreen() {
     }
 
     const sm0 = sectionMeters[0];
+    const r0 = sectionRecuperation[0];
+    const r1 = sectionRecuperation[1];
+    const r2 = sectionRecuperation[2];
     const finalDto: LocalCreateTripDto = {
       ...result.data,
       trainNumber: extended.trainNumber || undefined,
@@ -402,17 +390,15 @@ export default function AddTripScreen() {
       })),
       meterStart: sm0?.start ? parseFloat(sm0.start) : undefined,
       meterEnd: sm0?.end ? parseFloat(sm0.end) : undefined,
-      // New work event fields
-      appearanceType: appearanceType ?? undefined,
       lunchBreakMinutes: extended.lunchBreakMinutes ? parseInt(extended.lunchBreakMinutes, 10) : undefined,
-      recuperation1Accept: recuperationAccept[0] ? parseFloat(recuperationAccept[0]) : undefined,
-      recuperation1Deliver: recuperationDeliver[0] ? parseFloat(recuperationDeliver[0]) : undefined,
-      recuperation2Accept: sectionCount >= 2 && recuperationAccept[1] ? parseFloat(recuperationAccept[1]) : undefined,
-      recuperation2Deliver: sectionCount >= 2 && recuperationDeliver[1] ? parseFloat(recuperationDeliver[1]) : undefined,
-      recuperation3Accept: sectionCount >= 3 && recuperationAccept[2] ? parseFloat(recuperationAccept[2]) : undefined,
-      recuperation3Deliver: sectionCount >= 3 && recuperationDeliver[2] ? parseFloat(recuperationDeliver[2]) : undefined,
-      checkpointExit: extended.checkpointExit ? parseFloat(extended.checkpointExit) : undefined,
-      checkpointEntry: extended.checkpointEntry ? parseFloat(extended.checkpointEntry) : undefined,
+      checkpointOut: extended.checkpointOut ? parseFloat(extended.checkpointOut) : undefined,
+      checkpointIn: extended.checkpointIn ? parseFloat(extended.checkpointIn) : undefined,
+      recuperation1Accepted: r0?.accepted ? parseFloat(r0.accepted) : undefined,
+      recuperation1Delivered: r0?.delivered ? parseFloat(r0.delivered) : undefined,
+      recuperation2Accepted: r1?.accepted ? parseFloat(r1.accepted) : undefined,
+      recuperation2Delivered: r1?.delivered ? parseFloat(r1.delivered) : undefined,
+      recuperation3Accepted: r2?.accepted ? parseFloat(r2.accepted) : undefined,
+      recuperation3Delivered: r2?.delivered ? parseFloat(r2.delivered) : undefined,
     };
 
     setSaving(true);
@@ -629,17 +615,14 @@ export default function AddTripScreen() {
       <Section title="Явка на работу" step={4}>
         <Label>Тип явки</Label>
         <View style={s.chipRow}>
-          {([
-            { value: 'HOME', label: 'Явка из дома' },
-            { value: 'TURNAROUND', label: 'Явка из пункта оборота' },
-          ] as { value: AppearanceType; label: string }[]).map((opt) => (
+          {(['HOME', 'TURNAROUND'] as AppearanceType[]).map((t) => (
             <TouchableOpacity
-              key={opt.value}
-              style={[s.chip, appearanceType === opt.value && s.chipActive]}
-              onPress={() => setAppearanceType(appearanceType === opt.value ? null : opt.value)}
+              key={t}
+              style={[s.chip, fields.appearanceType === t && s.chipActive]}
+              onPress={() => setF('appearanceType', t)}
             >
-              <Text style={[s.chipText, appearanceType === opt.value && s.chipTextActive]}>
-                {opt.label}
+              <Text style={[s.chipText, fields.appearanceType === t && s.chipTextActive]}>
+                {AppearanceTypeLabelMap[t]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -749,33 +732,31 @@ export default function AddTripScreen() {
             {sectionConsumptions[i] !== null && sectionConsumptions[i]! < 0 && (
               <Text style={s.warnText}>Показание на конец меньше начального</Text>
             )}
-
-            {settings?.trackElectricity && (
-              <View style={{ marginTop: 8 }}>
-                <Text style={s.recuperationLabel}>
-                  Рекуперация{sectionCount > 1 ? ` — сек. ${i + 1}` : ''}: приёмка / сдача
-                </Text>
-                <View style={s.row}>
-                  <TextInput
-                    style={[s.input, { flex: 1 }]}
-                    placeholder="кВт·ч"
-                    placeholderTextColor="#475569"
-                    keyboardType="numeric"
-                    value={recuperationAccept[i] ?? ''}
-                    onChangeText={(v) => setRecupAccept(i, v)}
-                  />
-                  <View style={{ width: 12 }} />
-                  <TextInput
-                    style={[s.input, { flex: 1 }]}
-                    placeholder="кВт·ч"
-                    placeholderTextColor="#475569"
-                    keyboardType="numeric"
-                    value={recuperationDeliver[i] ?? ''}
-                    onChangeText={(v) => setRecupDeliver(i, v)}
-                  />
-                </View>
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Label style={s.colLabel}>Рекуперация приёмка</Label>
+                <TextInput
+                  style={s.input}
+                  placeholder="кВт·ч"
+                  placeholderTextColor="#475569"
+                  keyboardType="numeric"
+                  value={sectionRecuperation[i]?.accepted ?? ''}
+                  onChangeText={(v) => setSectionRecup(i, 'accepted', v)}
+                />
               </View>
-            )}
+              <View style={{ width: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Label style={s.colLabel}>Рекуперация сдача</Label>
+                <TextInput
+                  style={s.input}
+                  placeholder="кВт·ч"
+                  placeholderTextColor="#475569"
+                  keyboardType="numeric"
+                  value={sectionRecuperation[i]?.delivered ?? ''}
+                  onChangeText={(v) => setSectionRecup(i, 'delivered', v)}
+                />
+              </View>
+            </View>
           </View>
         ))}
 
@@ -794,8 +775,8 @@ export default function AddTripScreen() {
               placeholder="0"
               placeholderTextColor="#475569"
               keyboardType="numeric"
-              value={extended.checkpointExit}
-              onChangeText={(v) => setExt('checkpointExit', v)}
+              value={extended.checkpointOut}
+              onChangeText={(v) => setExt('checkpointOut', v)}
             />
           </View>
           <View style={{ width: 12 }} />
@@ -806,8 +787,8 @@ export default function AddTripScreen() {
               placeholder="0"
               placeholderTextColor="#475569"
               keyboardType="numeric"
-              value={extended.checkpointEntry}
-              onChangeText={(v) => setExt('checkpointEntry', v)}
+              value={extended.checkpointIn}
+              onChangeText={(v) => setExt('checkpointIn', v)}
             />
           </View>
         </View>
@@ -982,7 +963,6 @@ const s = StyleSheet.create({
   stepBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   sectionTitle: { color: '#f1f5f9', fontSize: 14, fontWeight: '600' },
   sectionLabel: { color: '#64748b', fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  recuperationLabel: { color: '#64748b', fontSize: 12, marginBottom: 4, marginTop: 2 },
   label: { color: '#94a3b8', fontSize: 13, marginBottom: 5, marginTop: 10 },
   colLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
   input: {
@@ -1034,6 +1014,10 @@ const s = StyleSheet.create({
   draft: {
     marginTop: 12, backgroundColor: '#0f172a', borderRadius: 10,
     padding: 12, borderWidth: 1, borderColor: '#1d4ed8',
+  },
+  draftBadge: {
+    color: '#475569', fontSize: 11, backgroundColor: '#1e293b',
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
   },
   draftApply: { flex: 1, backgroundColor: '#1d4ed8', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   draftDiscard: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
