@@ -98,6 +98,22 @@ model Trip {
   energy3End         Float?
   energy3Consumption Float?
 
+  // Work event fields
+  appearanceType    String?   // 'HOME' | 'TURNAROUND'
+  lunchBreakMinutes Int?
+
+  // Recuperation per section (accept / deliver)
+  recuperation1Accept  Float?
+  recuperation1Deliver Float?
+  recuperation2Accept  Float?
+  recuperation2Deliver Float?
+  recuperation3Accept  Float?
+  recuperation3Deliver Float?
+
+  // Checkpoint passage
+  checkpointExit  Float?
+  checkpointEntry Float?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])

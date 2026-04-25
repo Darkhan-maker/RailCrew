@@ -56,6 +56,17 @@ export const TripSchema = z.object({
   energy3Start: z.number().nullish(),
   energy3End: z.number().nullish(),
   energy3Consumption: z.number().nullish(),
+  // Work event fields
+  appearanceType: z.string().nullish(),
+  lunchBreakMinutes: z.number().int().nullish(),
+  recuperation1Accept: z.number().nullish(),
+  recuperation1Deliver: z.number().nullish(),
+  recuperation2Accept: z.number().nullish(),
+  recuperation2Deliver: z.number().nullish(),
+  recuperation3Accept: z.number().nullish(),
+  recuperation3Deliver: z.number().nullish(),
+  checkpointExit: z.number().nullish(),
+  checkpointEntry: z.number().nullish(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 
@@ -92,6 +103,17 @@ export const CreateTripDtoSchema = z.object({
   energy3Start: z.number().optional(),
   energy3End: z.number().optional(),
   energy3Consumption: z.number().optional(),
+  // Work event fields
+  appearanceType: z.string().optional(),
+  lunchBreakMinutes: z.number().int().optional(),
+  recuperation1Accept: z.number().optional(),
+  recuperation1Deliver: z.number().optional(),
+  recuperation2Accept: z.number().optional(),
+  recuperation2Deliver: z.number().optional(),
+  recuperation3Accept: z.number().optional(),
+  recuperation3Deliver: z.number().optional(),
+  checkpointExit: z.number().optional(),
+  checkpointEntry: z.number().optional(),
 });
 export type CreateTripDto = z.infer<typeof CreateTripDtoSchema>;
 
