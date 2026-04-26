@@ -35,37 +35,6 @@ const C = {
   danger: '#FF5A5F',
 };
 
-// ─── Text parser ──────────────────────────────────────────────────────────────
-
-const RU_MONTHS: Record<string, number> = {
-  января: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5,
-  июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11,
-};
-
-function parseTextLocally(text: string): Partial<CreateTripDto> {
-  const result: Partial<CreateTripDto> = {};
-  const routeMatch = text.match(/([А-ЯЁA-Z][а-яёa-z\-]+)\s*[-–—]\s*([А-ЯЁA-Z][а-яёa-z\-]+)/);
-  if (routeMatch) { result.routeFrom = routeMatch[1]; result.routeTo = routeMatch[2]; }
-  const ruDate = text.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i);
-  if (ruDate) {
-    const day = parseInt(ruDate[1], 10);
-    const month = RU_MONTHS[ruDate[2].toLowerCase()];
-    result.date = format(new Date(new Date().getFullYear(), month, day), 'yyyy-MM-dd');
-  } else {
-    const isoDate = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
-    if (isoDate) result.date = isoDate[1];
-  }
-  const startMatch = text.match(/(?:явка|начало|старт|с|от)\s+(\d{1,2}:\d{2})/i);
-  if (startMatch) result.startTime = startMatch[1].padStart(5, '0');
-  const endMatch = text.match(/(?:сдача|окончание|конец|до|по)\s+(\d{1,2}:\d{2})/i);
-  if (endMatch) result.endTime = endMatch[1].padStart(5, '0');
-  if (/грузов/i.test(text)) result.tripType = 'FREIGHT';
-  else if (/пассажир/i.test(text)) result.tripType = 'PASSENGER';
-  else if (/маневр/i.test(text)) result.tripType = 'SHUNTING';
-  else if (/резерв/i.test(text)) result.tripType = 'DEAD_RUN';
-  return result;
-}
-
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
 function calcDurationFull(startDate: string, startTime: string, endDate: string, endTime: string): number | null {
@@ -194,9 +163,6 @@ export default function AddTripScreen() {
   );
 
   const [userNotes, setUserNotes] = useState(params.notes ?? '');
-  const [voiceText, setVoiceText] = useState('');
-  const [voiceDraft, setVoiceDraft] = useState<Partial<CreateTripDto> | null>(null);
-  const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pickerMode, setPickerMode] = useState<PickerMode>(null);
   const [timeError, setTimeError] = useState('');
@@ -280,23 +246,6 @@ export default function AddTripScreen() {
   async function handleRemoveTemplate(id: string) {
     await localRoutesStorage.remove(id);
     setRoutes((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  function handleVoiceParse() {
-    if (!voiceText.trim()) return;
-    setParsing(true);
-    setVoiceDraft(null);
-    try {
-      setVoiceDraft(parseTextLocally(voiceText));
-    } finally {
-      setParsing(false);
-    }
-  }
-
-  function applyDraft() {
-    if (!voiceDraft) return;
-    setFields((f) => ({ ...f, ...voiceDraft }));
-    setVoiceDraft(null); setVoiceText('');
   }
 
   function handlePickerChange(_: DateTimePickerEvent, selected?: Date) {
@@ -463,48 +412,6 @@ export default function AddTripScreen() {
           </View>
         </Section>
       )}
-
-      {/* ─── Голосовой ввод ──────────────────────────────── */}
-      <Section>
-        <Label>Текстовый / голосовой ввод</Label>
-        <TextInput
-          style={[s.input, { minHeight: 64, textAlignVertical: 'top' }]}
-          placeholder="Астана – Алматы, 7 апреля, явка 08:00, сдача 16:30, грузовой"
-          placeholderTextColor={C.textMute}
-          multiline
-          value={voiceText}
-          onChangeText={setVoiceText}
-        />
-        <TouchableOpacity
-          style={[s.btnOutline, (!voiceText.trim() || parsing) && { opacity: 0.5 }]}
-          onPress={handleVoiceParse}
-          disabled={!voiceText.trim() || parsing}
-        >
-          {parsing ? <ActivityIndicator color={C.blue} /> : <Text style={s.btnOutlineText}>Распознать</Text>}
-        </TouchableOpacity>
-        {voiceDraft && (
-          <View style={s.draft}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>Распознано</Text>
-            </View>
-            {(voiceDraft.routeFrom || voiceDraft.routeTo) && (
-              <DraftRow label="Маршрут" value={[voiceDraft.routeFrom, voiceDraft.routeTo].filter(Boolean).join(' → ')} />
-            )}
-            {voiceDraft.date && <DraftRow label="Дата" value={voiceDraft.date} />}
-            {voiceDraft.startTime && <DraftRow label="Явка" value={voiceDraft.startTime} />}
-            {voiceDraft.endTime && <DraftRow label="Сдача" value={voiceDraft.endTime} />}
-            {voiceDraft.tripType && <DraftRow label="Тип" value={TripTypeLabelMap[voiceDraft.tripType]} />}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              <TouchableOpacity style={s.draftApply} onPress={applyDraft}>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Применить</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.draftDiscard} onPress={() => { setVoiceDraft(null); }}>
-                <Text style={{ color: C.textMute, fontSize: 13 }}>Отклонить</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </Section>
 
       {/* ─── 1: Маршрут ──────────────────────────────────── */}
       <Section title="Маршрут" step={1}>
@@ -954,15 +861,6 @@ function PickerBtn({
   );
 }
 
-function DraftRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-      <Text style={{ color: C.textMute, fontSize: 13 }}>{label}</Text>
-      <Text style={{ color: C.text, fontSize: 13 }}>{value}</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 16 },
   header: { color: C.text, fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
@@ -1028,22 +926,8 @@ const s = StyleSheet.create({
   templateSub: { color: C.textMute, fontSize: 12, marginTop: 2 },
   removeText: { color: C.textMute, fontSize: 14, padding: 4 },
 
-  draft: {
-    marginTop: 12, backgroundColor: C.surface, borderRadius: 10,
-    padding: 12, borderWidth: 1, borderColor: C.blueDark,
-  },
-  draftBadge: {
-    color: C.textMute, fontSize: 11, backgroundColor: C.card,
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
-  },
-  draftApply: { flex: 1, backgroundColor: C.blueDark, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  draftDiscard: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: C.line, alignItems: 'center' },
-
   btnPrimary: { backgroundColor: C.blue, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  btnOutline: { borderWidth: 1, borderColor: C.blue, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
-  btnOutlineText: { color: C.blue, fontSize: 15, fontWeight: '600' },
-
   iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
   iosSheet: { backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
   iosSheetHeader: {
