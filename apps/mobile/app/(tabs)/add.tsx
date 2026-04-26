@@ -18,6 +18,23 @@ import { todayISO } from '@/utils/date';
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
 
+const C = {
+  bg: '#0B0F14',
+  surface: '#111820',
+  card: '#192030',
+  line: '#263245',
+  lineSoft: '#1C2736',
+  text: '#E8EEF5',
+  textDim: '#8A99AD',
+  textMute: '#5B6A7E',
+  blue: '#2472CC',
+  blueDark: '#1A5BA8',
+  blueDim: '#0D3D7A',
+  amber: '#F5B301',
+  green: '#3BD48A',
+  danger: '#FF5A5F',
+};
+
 // ─── Text parser ──────────────────────────────────────────────────────────────
 
 const RU_MONTHS: Record<string, number> = {
@@ -453,7 +470,7 @@ export default function AddTripScreen() {
         <TextInput
           style={[s.input, { minHeight: 64, textAlignVertical: 'top' }]}
           placeholder="Астана – Алматы, 7 апреля, явка 08:00, сдача 16:30, грузовой"
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           multiline
           value={voiceText}
           onChangeText={setVoiceText}
@@ -463,12 +480,12 @@ export default function AddTripScreen() {
           onPress={handleVoiceParse}
           disabled={!voiceText.trim() || parsing}
         >
-          {parsing ? <ActivityIndicator color="#3b82f6" /> : <Text style={s.btnOutlineText}>Распознать</Text>}
+          {parsing ? <ActivityIndicator color={C.blue} /> : <Text style={s.btnOutlineText}>Распознать</Text>}
         </TouchableOpacity>
         {voiceDraft && (
           <View style={s.draft}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-              <Text style={{ color: '#93c5fd', fontSize: 13, fontWeight: '600' }}>Распознано</Text>
+              <Text style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>Распознано</Text>
             </View>
             {(voiceDraft.routeFrom || voiceDraft.routeTo) && (
               <DraftRow label="Маршрут" value={[voiceDraft.routeFrom, voiceDraft.routeTo].filter(Boolean).join(' → ')} />
@@ -482,7 +499,7 @@ export default function AddTripScreen() {
                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Применить</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.draftDiscard} onPress={() => { setVoiceDraft(null); }}>
-                <Text style={{ color: '#64748b', fontSize: 13 }}>Отклонить</Text>
+                <Text style={{ color: C.textMute, fontSize: 13 }}>Отклонить</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -500,7 +517,7 @@ export default function AddTripScreen() {
         <TextInput
           style={s.input}
           placeholder="Станция отправления"
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           value={fields.routeFrom ?? ''}
           onChangeText={(v) => setF('routeFrom', v)}
         />
@@ -510,7 +527,7 @@ export default function AddTripScreen() {
         <TextInput
           style={s.input}
           placeholder="Станция прибытия"
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           value={fields.routeTo ?? ''}
           onChangeText={(v) => setF('routeTo', v)}
         />
@@ -534,7 +551,7 @@ export default function AddTripScreen() {
         <TextInput
           style={s.input}
           placeholder="Например: 1234"
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           keyboardType="numeric"
           value={extended.trainNumber}
           onChangeText={(v) => setExt('trainNumber', v)}
@@ -549,7 +566,7 @@ export default function AddTripScreen() {
             <TextInput
               style={s.input}
               placeholder="0"
-              placeholderTextColor="#475569"
+              placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.trainWeight}
               onChangeText={(v) => setExt('trainWeight', v)}
@@ -561,7 +578,7 @@ export default function AddTripScreen() {
             <TextInput
               style={s.input}
               placeholder="0"
-              placeholderTextColor="#475569"
+              placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.axleCount}
               onChangeText={(v) => setExt('axleCount', v)}
@@ -578,7 +595,7 @@ export default function AddTripScreen() {
             <TextInput
               style={s.input}
               placeholder="ВЛ80, КЗ8А..."
-              placeholderTextColor="#475569"
+              placeholderTextColor={C.textMute}
               value={extended.locoModel}
               onChangeText={(v) => setExt('locoModel', v)}
             />
@@ -589,7 +606,7 @@ export default function AddTripScreen() {
             <TextInput
               style={s.input}
               placeholder="0542"
-              placeholderTextColor="#475569"
+              placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.locoNumber}
               onChangeText={(v) => setExt('locoNumber', v)}
@@ -654,7 +671,7 @@ export default function AddTripScreen() {
         <TextInput
           style={s.input}
           placeholder="0"
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           keyboardType="numeric"
           value={extended.lunchBreakMinutes}
           onChangeText={(v) => setExt('lunchBreakMinutes', v)}
@@ -705,7 +722,7 @@ export default function AddTripScreen() {
                 <TextInput
                   style={s.input}
                   placeholder="0"
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={C.textMute}
                   keyboardType="numeric"
                   value={sm.start}
                   onChangeText={(v) => setSectionMeter(i, 'start', v)}
@@ -717,7 +734,7 @@ export default function AddTripScreen() {
                 <TextInput
                   style={s.input}
                   placeholder="0"
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={C.textMute}
                   keyboardType="numeric"
                   value={sm.end}
                   onChangeText={(v) => setSectionMeter(i, 'end', v)}
@@ -738,7 +755,7 @@ export default function AddTripScreen() {
                 <TextInput
                   style={s.input}
                   placeholder="кВт·ч"
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={C.textMute}
                   keyboardType="numeric"
                   value={sectionRecuperation[i]?.accepted ?? ''}
                   onChangeText={(v) => setSectionRecup(i, 'accepted', v)}
@@ -750,7 +767,7 @@ export default function AddTripScreen() {
                 <TextInput
                   style={s.input}
                   placeholder="кВт·ч"
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={C.textMute}
                   keyboardType="numeric"
                   value={sectionRecuperation[i]?.delivered ?? ''}
                   onChangeText={(v) => setSectionRecup(i, 'delivered', v)}
@@ -773,7 +790,7 @@ export default function AddTripScreen() {
             <TextInput
               style={s.input}
               placeholder="0"
-              placeholderTextColor="#475569"
+              placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.checkpointOut}
               onChangeText={(v) => setExt('checkpointOut', v)}
@@ -785,7 +802,7 @@ export default function AddTripScreen() {
             <TextInput
               style={s.input}
               placeholder="0"
-              placeholderTextColor="#475569"
+              placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.checkpointIn}
               onChangeText={(v) => setExt('checkpointIn', v)}
@@ -803,7 +820,7 @@ export default function AddTripScreen() {
               <TextInput
                 style={s.input}
                 placeholder="ЧЧ:ММ"
-                placeholderTextColor="#475569"
+                placeholderTextColor={C.textMute}
                 value={extended.passengerDepartureTime}
                 onChangeText={(v) => setExt('passengerDepartureTime', v)}
               />
@@ -814,7 +831,7 @@ export default function AddTripScreen() {
               <TextInput
                 style={s.input}
                 placeholder="ЧЧ:ММ"
-                placeholderTextColor="#475569"
+                placeholderTextColor={C.textMute}
                 value={extended.passengerArrivalTime}
                 onChangeText={(v) => setExt('passengerArrivalTime', v)}
               />
@@ -828,7 +845,7 @@ export default function AddTripScreen() {
         <TextInput
           style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
           placeholder="Необязательно"
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           multiline
           value={userNotes}
           onChangeText={setUserNotes}
@@ -852,7 +869,7 @@ export default function AddTripScreen() {
               <View style={s.iosSheetHeader}>
                 <Text style={s.iosSheetTitle}>{pickerLabel(pickerMode)}</Text>
                 <TouchableOpacity onPress={() => setPickerMode(null)}>
-                  <Text style={{ color: '#3b82f6', fontSize: 16, fontWeight: '600' }}>Готово</Text>
+                  <Text style={{ color: C.blue, fontSize: 16, fontWeight: '600' }}>Готово</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -923,7 +940,7 @@ function PickerBtn({
 }) {
   return (
     <TouchableOpacity
-      style={[s.pickerField, highlight && { borderColor: '#a78bfa', borderWidth: 1 }]}
+      style={[s.pickerField, highlight && { borderColor: C.blue, borderWidth: 1 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -931,7 +948,7 @@ function PickerBtn({
         {value || placeholder}
       </Text>
       <View style={{ flexShrink: 0, paddingLeft: 6 }}>
-        <Ionicons name={icon} size={18} color="#94a3b8" />
+        <Ionicons name={icon} size={18} color={C.textDim} />
       </View>
     </TouchableOpacity>
   );
@@ -940,98 +957,98 @@ function PickerBtn({
 function DraftRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-      <Text style={{ color: '#475569', fontSize: 13 }}>{label}</Text>
-      <Text style={{ color: '#f1f5f9', fontSize: 13 }}>{value}</Text>
+      <Text style={{ color: C.textMute, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: C.text, fontSize: 13 }}>{value}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0f172a', paddingHorizontal: 16 },
-  header: { color: '#f1f5f9', fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
+  screen: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 16 },
+  header: { color: C.text, fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
 
-  card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 12 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 12 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingBottom: 12, marginBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: '#334155',
+    borderBottomWidth: 1, borderBottomColor: C.line,
   },
   stepBadge: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: '#1d4ed8', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.blueDark, alignItems: 'center', justifyContent: 'center',
   },
   stepBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  sectionTitle: { color: '#f1f5f9', fontSize: 14, fontWeight: '600' },
-  sectionLabel: { color: '#64748b', fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  label: { color: '#94a3b8', fontSize: 13, marginBottom: 5, marginTop: 10 },
-  colLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
+  sectionTitle: { color: C.text, fontSize: 14, fontWeight: '600' },
+  sectionLabel: { color: C.textMute, fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { color: C.textDim, fontSize: 13, marginBottom: 5, marginTop: 10 },
+  colLabel: { color: C.textDim, fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
   input: {
-    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
+    backgroundColor: C.surface, color: C.text, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11, fontSize: 15,
-    borderWidth: 1, borderColor: '#334155',
+    borderWidth: 1, borderColor: C.line,
   },
   row: { flexDirection: 'row', alignItems: 'flex-start' },
 
   routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  saveTemplate: { color: '#3b82f6', fontSize: 13 },
+  saveTemplate: { color: C.blue, fontSize: 13 },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 6 },
-  divLine: { flex: 1, height: 1, backgroundColor: '#334155' },
-  divArrow: { color: '#475569', fontSize: 16, marginHorizontal: 8 },
+  divLine: { flex: 1, height: 1, backgroundColor: C.line },
+  divArrow: { color: C.textMute, fontSize: 16, marginHorizontal: 8 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,
   },
-  chipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  chipText: { color: '#64748b', fontSize: 13 },
+  chipActive: { backgroundColor: C.blue, borderColor: C.blue },
+  chipText: { color: C.textMute, fontSize: 13 },
   chipTextActive: { color: '#fff', fontWeight: '600' },
 
   pickerField: {
-    backgroundColor: '#0f172a', borderRadius: 10,
+    backgroundColor: C.surface, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: '#334155',
+    borderWidth: 1, borderColor: C.line,
   },
-  pickerValue: { color: '#f1f5f9', fontSize: 15 },
-  pickerPlaceholder: { color: '#475569', fontSize: 15 },
+  pickerValue: { color: C.text, fontSize: 15 },
+  pickerPlaceholder: { color: C.textMute, fontSize: 15 },
 
-  errorText: { color: '#ef4444', fontSize: 13, marginTop: 8 },
-  warnText: { color: '#f59e0b', fontSize: 13, marginTop: 4 },
-  durationText: { color: '#34d399', fontSize: 13 },
-  calcText: { color: '#34d399', fontSize: 13, marginTop: 4 },
+  errorText: { color: C.danger, fontSize: 13, marginTop: 8 },
+  warnText: { color: C.amber, fontSize: 13, marginTop: 4 },
+  durationText: { color: C.green, fontSize: 13 },
+  calcText: { color: C.green, fontSize: 13, marginTop: 4 },
 
   templateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   templateChip: {
-    flex: 1, backgroundColor: '#0f172a', borderRadius: 10,
+    flex: 1, backgroundColor: C.surface, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#334155',
+    borderWidth: 1, borderColor: C.line,
   },
-  templateText: { color: '#f1f5f9', fontSize: 14 },
-  templateSub: { color: '#475569', fontSize: 12, marginTop: 2 },
-  removeText: { color: '#475569', fontSize: 14, padding: 4 },
+  templateText: { color: C.text, fontSize: 14 },
+  templateSub: { color: C.textMute, fontSize: 12, marginTop: 2 },
+  removeText: { color: C.textMute, fontSize: 14, padding: 4 },
 
   draft: {
-    marginTop: 12, backgroundColor: '#0f172a', borderRadius: 10,
-    padding: 12, borderWidth: 1, borderColor: '#1d4ed8',
+    marginTop: 12, backgroundColor: C.surface, borderRadius: 10,
+    padding: 12, borderWidth: 1, borderColor: C.blueDark,
   },
   draftBadge: {
-    color: '#475569', fontSize: 11, backgroundColor: '#1e293b',
+    color: C.textMute, fontSize: 11, backgroundColor: C.card,
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
   },
-  draftApply: { flex: 1, backgroundColor: '#1d4ed8', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  draftDiscard: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
+  draftApply: { flex: 1, backgroundColor: C.blueDark, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  draftDiscard: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: C.line, alignItems: 'center' },
 
-  btnPrimary: { backgroundColor: '#3b82f6', borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
+  btnPrimary: { backgroundColor: C.blue, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  btnOutline: { borderWidth: 1, borderColor: '#3b82f6', borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
-  btnOutlineText: { color: '#3b82f6', fontSize: 15, fontWeight: '600' },
+  btnOutline: { borderWidth: 1, borderColor: C.blue, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8 },
+  btnOutlineText: { color: C.blue, fontSize: 15, fontWeight: '600' },
 
-  iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  iosSheet: { backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+  iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
+  iosSheet: { backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
   iosSheetHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: '#334155',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: C.line,
   },
-  iosSheetTitle: { color: '#f1f5f9', fontSize: 16, fontWeight: '600' },
+  iosSheetTitle: { color: C.text, fontSize: 16, fontWeight: '600' },
 });

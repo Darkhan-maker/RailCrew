@@ -9,6 +9,20 @@ import {
 } from '@/services/storage.service';
 import { useAuthStore } from '@/store/auth.store';
 
+// ─── Design tokens ───────────────────────────────────────────────────────────
+
+const C = {
+  bg: '#0B0F14',
+  surface: '#111820',
+  card: '#192030',
+  line: '#263245',
+  text: '#E8EEF5',
+  textDim: '#8A99AD',
+  textMute: '#5B6A7E',
+  blue: '#2472CC',
+  blueDark: '#1A5BA8',
+};
+
 // ─── Часовые пояса (относительно Москвы) ─────────────────────────────────────
 
 const TIMEZONE_OPTIONS: { label: string; value: number }[] = [
@@ -42,7 +56,7 @@ export default function SettingsScreen() {
   if (!settings || !salary) {
     return (
       <View style={s.screen}>
-        <ActivityIndicator color="#3b82f6" style={{ marginTop: 100 }} />
+        <ActivityIndicator color={C.blue} style={{ marginTop: 100 }} />
       </View>
     );
   }
@@ -181,7 +195,7 @@ export default function SettingsScreen() {
             value={settings.defaultLocoModel}
             onChangeText={(v) => updateSetting('defaultLocoModel', v)}
             placeholder="Например: ВЛ80, КЗ8А, ТЭ33А"
-            placeholderTextColor="#475569"
+            placeholderTextColor={C.textMute}
           />
         </View>
         <View>
@@ -191,7 +205,7 @@ export default function SettingsScreen() {
             value={settings.defaultLocoNumber}
             onChangeText={(v) => updateSetting('defaultLocoNumber', v)}
             placeholder="Например: 0542"
-            placeholderTextColor="#475569"
+            placeholderTextColor={C.textMute}
           />
         </View>
       </View>
@@ -206,8 +220,8 @@ export default function SettingsScreen() {
           <Switch
             value={settings.trackNightHours}
             onValueChange={(v) => updateSetting('trackNightHours', v)}
-            trackColor={{ false: '#334155', true: '#1d4ed8' }}
-            thumbColor={settings.trackNightHours ? '#3b82f6' : '#64748b'}
+            trackColor={{ false: C.line, true: C.blueDark }}
+            thumbColor={settings.trackNightHours ? C.blue : C.textMute}
           />
         </View>
 
@@ -224,7 +238,7 @@ export default function SettingsScreen() {
                 }}
                 keyboardType="numeric"
                 placeholder="22"
-                placeholderTextColor="#475569"
+                placeholderTextColor={C.textMute}
               />
             </View>
             <Text style={s.nightDash}>—</Text>
@@ -239,7 +253,7 @@ export default function SettingsScreen() {
                 }}
                 keyboardType="numeric"
                 placeholder="6"
-                placeholderTextColor="#475569"
+                placeholderTextColor={C.textMute}
               />
             </View>
           </View>
@@ -258,8 +272,8 @@ export default function SettingsScreen() {
           <Switch
             value={settings.trackElectricity}
             onValueChange={(v) => updateSetting('trackElectricity', v)}
-            trackColor={{ false: '#334155', true: '#1d4ed8' }}
-            thumbColor={settings.trackElectricity ? '#3b82f6' : '#64748b'}
+            trackColor={{ false: C.line, true: C.blueDark }}
+            thumbColor={settings.trackElectricity ? C.blue : C.textMute}
           />
         </View>
       </View>
@@ -276,8 +290,8 @@ export default function SettingsScreen() {
           <Switch
             value={settings.trackPassengerTravel}
             onValueChange={(v) => updateSetting('trackPassengerTravel', v)}
-            trackColor={{ false: '#334155', true: '#1d4ed8' }}
-            thumbColor={settings.trackPassengerTravel ? '#3b82f6' : '#64748b'}
+            trackColor={{ false: C.line, true: C.blueDark }}
+            thumbColor={settings.trackPassengerTravel ? C.blue : C.textMute}
           />
         </View>
       </View>
@@ -371,7 +385,7 @@ function NumericField({
         onChangeText={handleChange}
         keyboardType="numeric"
         placeholder={placeholder}
-        placeholderTextColor="#475569"
+        placeholderTextColor={C.textMute}
       />
     </View>
   );
@@ -380,52 +394,53 @@ function NumericField({
 // ─── Стили ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0f172a', padding: 16 },
+  screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
   header: {
-    color: '#f1f5f9', fontSize: 24, fontWeight: 'bold',
+    color: C.text, fontSize: 24, fontWeight: 'bold',
     marginTop: 48, marginBottom: 16,
   },
 
-  card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 12 },
-  cardTitle: { color: '#f1f5f9', fontSize: 16, fontWeight: '600', marginBottom: 2 },
-  cardHint: { color: '#475569', fontSize: 13, marginBottom: 12 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 12 },
+  cardTitle: { color: C.text, fontSize: 16, fontWeight: '600', marginBottom: 2 },
+  cardHint: { color: C.textMute, fontSize: 13, marginBottom: 12 },
 
   profileCard: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
   avatar: {
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#0f2847', borderWidth: 2, borderColor: '#4D8DFF',
+    backgroundColor: C.blueDark, borderWidth: 2, borderColor: C.blue,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  avatarText: { color: '#4D8DFF', fontSize: 20, fontWeight: '700' },
-  profileName: { color: '#f1f5f9', fontSize: 16, fontWeight: '600', marginBottom: 2 },
-  profileEmail: { color: '#475569', fontSize: 13 },
+  avatarText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  profileName: { color: C.text, fontSize: 16, fontWeight: '600', marginBottom: 2 },
+  profileEmail: { color: C.textMute, fontSize: 13 },
 
-  label: { color: '#94a3b8', fontSize: 13, marginBottom: 4 },
+  label: { color: C.textDim, fontSize: 13, marginBottom: 4 },
   input: {
-    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
-    padding: 12, fontSize: 15,
+    backgroundColor: C.surface, color: C.text, borderRadius: 10,
+    padding: 12, fontSize: 15, borderWidth: 1, borderColor: C.line,
   },
 
   // Select / Dropdown
   selectField: {
-    backgroundColor: '#0f172a', borderRadius: 10, padding: 12,
+    backgroundColor: C.surface, borderRadius: 10, padding: 12,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: C.line,
   },
-  selectValue: { color: '#f1f5f9', fontSize: 15, flex: 1 },
-  selectArrow: { color: '#64748b', fontSize: 12, marginLeft: 8 },
+  selectValue: { color: C.text, fontSize: 15, flex: 1 },
+  selectArrow: { color: C.textMute, fontSize: 12, marginLeft: 8 },
 
   optionsList: {
     marginTop: 8, borderRadius: 10, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#334155',
+    borderWidth: 1, borderColor: C.line,
   },
   optionItem: {
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#1e293b',
-    backgroundColor: '#0f172a',
+    borderBottomWidth: 1, borderBottomColor: C.card,
+    backgroundColor: C.surface,
   },
-  optionItemActive: { backgroundColor: '#1e3a5f' },
-  optionText: { color: '#94a3b8', fontSize: 14 },
-  optionTextActive: { color: '#3b82f6', fontWeight: '600' },
+  optionItemActive: { backgroundColor: C.blueDark },
+  optionText: { color: C.textDim, fontSize: 14 },
+  optionTextActive: { color: '#fff', fontWeight: '600' },
 
   // Switch row
   switchRow: {
@@ -436,11 +451,11 @@ const s = StyleSheet.create({
   nightHoursRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12,
   },
-  nightDash: { color: '#64748b', fontSize: 18, paddingBottom: 12 },
+  nightDash: { color: C.textMute, fontSize: 18, paddingBottom: 12 },
 
   // Save
   saveBtn: {
-    backgroundColor: '#3b82f6', borderRadius: 12, padding: 16,
+    backgroundColor: C.blue, borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 4, marginBottom: 20,
   },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },

@@ -12,6 +12,26 @@ import { TripType, TripTypeLabelMap } from '@railcrew/contracts';
 import { LocalTrip } from '@/services/storage.service';
 import { formatDateRu, formatDuration } from '@/utils/date';
 
+// ─── Design tokens ───────────────────────────────────────────────────────────
+
+const C = {
+  bg: '#0B0F14',
+  surface: '#111820',
+  card: '#192030',
+  cardHi: '#1F2A3D',
+  line: '#263245',
+  lineSoft: '#1C2736',
+  text: '#E8EEF5',
+  textDim: '#8A99AD',
+  textMute: '#5B6A7E',
+  blue: '#2472CC',
+  blueDark: '#1A5BA8',
+  blueDim: '#0D3D7A',
+  amber: '#F5B301',
+  green: '#3BD48A',
+  danger: '#FF5A5F',
+};
+
 // ─── Period filter ────────────────────────────────────────────────────────────
 
 type PeriodFilter = 'ALL' | 'DAY' | 'WEEK' | 'MONTH';
@@ -183,7 +203,7 @@ function FilterModal({
           <TextInput
             style={ms.input}
             placeholder="Напр.: Алматы"
-            placeholderTextColor="#475569"
+            placeholderTextColor={C.textMute}
             value={routeFrom}
             onChangeText={setRouteFrom}
             autoCapitalize="words"
@@ -194,7 +214,7 @@ function FilterModal({
           <TextInput
             style={ms.input}
             placeholder="Напр.: Астана"
-            placeholderTextColor="#475569"
+            placeholderTextColor={C.textMute}
             value={routeTo}
             onChangeText={setRouteTo}
             autoCapitalize="words"
@@ -205,7 +225,7 @@ function FilterModal({
           <TextInput
             style={ms.input}
             placeholder="2025-01-01"
-            placeholderTextColor="#475569"
+            placeholderTextColor={C.textMute}
             value={dateFrom}
             onChangeText={setDateFrom}
             keyboardType="numbers-and-punctuation"
@@ -216,7 +236,7 @@ function FilterModal({
           <TextInput
             style={ms.input}
             placeholder="2025-12-31"
-            placeholderTextColor="#475569"
+            placeholderTextColor={C.textMute}
             value={dateTo}
             onChangeText={setDateTo}
             keyboardType="numbers-and-punctuation"
@@ -481,7 +501,7 @@ export default function TripsScreen() {
             activeOpacity={0.75}
           >
             {exporting
-              ? <ActivityIndicator color="#3b82f6" size="small" />
+              ? <ActivityIndicator color={C.blue} size="small" />
               : <Text style={s.exportBtnText}>CSV</Text>}
           </TouchableOpacity>
         </View>
@@ -492,7 +512,7 @@ export default function TripsScreen() {
         <TextInput
           style={s.searchInput}
           placeholder="Поиск по маршруту, локомотиву, заметкам..."
-          placeholderTextColor="#475569"
+          placeholderTextColor={C.textMute}
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
@@ -625,7 +645,7 @@ export default function TripsScreen() {
 
       {/* List */}
       {isLoading ? (
-        <ActivityIndicator color="#3b82f6" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.blue} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={filtered}
@@ -673,33 +693,33 @@ function pluralTrips(n: number): string {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0f172a', padding: 16 },
+  screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
 
   topRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginTop: 48, marginBottom: 10,
   },
-  header: { color: '#f1f5f9', fontSize: 24, fontWeight: 'bold' },
+  header: { color: C.text, fontSize: 24, fontWeight: 'bold' },
   topRowActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   filterBtn: {
-    borderWidth: 1, borderColor: '#334155', borderRadius: 8,
+    borderWidth: 1, borderColor: C.line, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center',
   },
-  filterBtnActive: { borderColor: '#3b82f6', backgroundColor: '#1e3a5f' },
-  filterBtnText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
-  filterBtnTextActive: { color: '#3b82f6' },
+  filterBtnActive: { borderColor: C.blue, backgroundColor: C.blueDim },
+  filterBtnText: { color: C.textMute, fontSize: 13, fontWeight: '600' },
+  filterBtnTextActive: { color: C.blue },
   exportBtn: {
-    borderWidth: 1, borderColor: '#334155', borderRadius: 8,
+    borderWidth: 1, borderColor: C.line, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 6, minWidth: 44, alignItems: 'center',
   },
-  exportBtnText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+  exportBtnText: { color: C.textMute, fontSize: 13, fontWeight: '600' },
 
   // Search
   searchRow: { marginBottom: 10 },
   searchInput: {
-    backgroundColor: '#1e293b', color: '#f1f5f9', borderRadius: 10,
+    backgroundColor: C.card, color: C.text, borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 10, fontSize: 14,
-    borderWidth: 1, borderColor: '#334155',
+    borderWidth: 1, borderColor: C.line,
   },
 
   // Chip rows (scrollable)
@@ -707,54 +727,54 @@ const s = StyleSheet.create({
   chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
   },
-  filterChipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  filterChipText: { color: '#64748b', fontSize: 13 },
+  filterChipActive: { backgroundColor: C.blue, borderColor: C.blue },
+  filterChipText: { color: C.textMute, fontSize: 13 },
   filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
   // Toggle chips + clear
   toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' },
   toggleChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
   },
-  toggleChipActive: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
-  toggleChipText: { color: '#64748b', fontSize: 12 },
-  toggleChipTextActive: { color: '#0f172a', fontWeight: '600' },
+  toggleChipActive: { backgroundColor: C.amber, borderColor: C.amber },
+  toggleChipText: { color: C.textMute, fontSize: 12 },
+  toggleChipTextActive: { color: C.bg, fontWeight: '600' },
   clearBtn: {
     paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: '#ef4444',
+    borderRadius: 20, borderWidth: 1, borderColor: C.danger,
   },
-  clearBtnText: { color: '#ef4444', fontSize: 12 },
+  clearBtnText: { color: C.danger, fontSize: 12 },
 
   // Summary row
   summary: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 10, paddingHorizontal: 2,
   },
-  summaryText: { color: '#94a3b8', fontSize: 13 },
-  summaryDot: { color: '#334155', fontSize: 13 },
+  summaryText: { color: C.textDim, fontSize: 13 },
+  summaryDot: { color: C.line, fontSize: 13 },
 
   // Cards
-  card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 10 },
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 10 },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', gap: 8,
   },
-  route: { color: '#f1f5f9', fontSize: 16, fontWeight: '600', flex: 1 },
-  unsyncedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#f59e0b', flexShrink: 0 },
-  meta: { color: '#64748b', fontSize: 13, marginTop: 4 },
-  metaExtra: { color: '#475569', fontSize: 12, marginTop: 3 },
+  route: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
+  unsyncedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber, flexShrink: 0 },
+  meta: { color: C.textMute, fontSize: 13, marginTop: 4 },
+  metaExtra: { color: C.textMute, fontSize: 12, marginTop: 3 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   cardFooterRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   chip: {
-    backgroundColor: '#0f172a', color: '#3b82f6', fontSize: 12,
+    backgroundColor: C.surface, color: C.blue, fontSize: 12,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
   },
-  elecText: { color: '#34d399', fontSize: 12 },
-  duration: { color: '#94a3b8', fontSize: 13 },
-  empty: { color: '#64748b', textAlign: 'center', marginTop: 60, fontSize: 16 },
+  elecText: { color: C.green, fontSize: 12 },
+  duration: { color: C.textDim, fontSize: 13 },
+  empty: { color: C.textMute, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });
 
 // ─── Modal styles ─────────────────────────────────────────────────────────────
@@ -762,40 +782,40 @@ const s = StyleSheet.create({
 const ms = StyleSheet.create({
   overlay: {
     flex: 1, justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   sheet: {
-    backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     padding: 20, paddingBottom: 36,
   },
   handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#334155',
+    width: 40, height: 4, borderRadius: 2, backgroundColor: C.line,
     alignSelf: 'center', marginBottom: 16,
   },
-  title: { color: '#f1f5f9', fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  label: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 },
+  title: { color: C.text, fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  label: { color: C.textDim, fontSize: 13, marginBottom: 6, marginTop: 12 },
   input: {
-    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
+    backgroundColor: C.surface, color: C.text, borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 10, fontSize: 14,
-    borderWidth: 1, borderColor: '#334155',
+    borderWidth: 1, borderColor: C.line,
   },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,
   },
-  chipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  chipText: { color: '#64748b', fontSize: 13 },
+  chipActive: { backgroundColor: C.blue, borderColor: C.blue },
+  chipText: { color: C.textMute, fontSize: 13 },
   chipTextActive: { color: '#fff', fontWeight: '600' },
   actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
   resetBtn: {
     flex: 1, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: '#334155', alignItems: 'center',
+    borderWidth: 1, borderColor: C.line, alignItems: 'center',
   },
-  resetBtnText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  resetBtnText: { color: C.textDim, fontSize: 15, fontWeight: '600' },
   applyBtn: {
     flex: 2, paddingVertical: 12, borderRadius: 10,
-    backgroundColor: '#3b82f6', alignItems: 'center',
+    backgroundColor: C.blue, alignItems: 'center',
   },
   applyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
