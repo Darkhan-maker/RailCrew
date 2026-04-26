@@ -16,6 +16,13 @@ import { exportApi } from '@/services/api.service';
 
 type PeriodFilter = 'DAY' | 'WEEK' | 'MONTH';
 
+const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+function formatDateShort(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return `${d} ${MONTH_SHORT[m - 1]} ${y}`;
+}
+
 const PERIODS: { label: string; value: PeriodFilter }[] = [
   { label: 'День', value: 'DAY' },
   { label: 'Неделя', value: 'WEEK' },
@@ -571,7 +578,7 @@ function TripRow({ trip, last }: { trip: LocalTrip; last: boolean }) {
         </View>
       </View>
       <View style={s.tripMeta}>
-        <Text style={s.tripMetaText}>{trip.date}</Text>
+        <Text style={s.tripMetaText}>{formatDateShort(trip.date)}</Text>
         <Text style={[s.tripMetaText, { fontFamily: 'monospace' }]}>
           {formatDuration(trip.durationMinutes ?? 0)}
         </Text>
@@ -622,7 +629,10 @@ const s = StyleSheet.create({
   placeholder: { color: C.textMuted, fontSize: 14, paddingVertical: 4 },
 
   // Hero salary card
-  heroCard: { backgroundColor: C.card, borderRadius: 16, padding: 20, marginBottom: 12 },
+  heroCard: {
+    backgroundColor: '#1A3A5C', borderRadius: 16, padding: 20, marginBottom: 12,
+    borderTopWidth: 2, borderTopColor: '#2472CC',
+  },
   heroAmount: {
     color: C.textPrimary, fontSize: 38, fontWeight: '700',
     fontFamily: 'monospace', marginBottom: 16,

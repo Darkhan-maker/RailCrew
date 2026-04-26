@@ -64,6 +64,13 @@ function getPeriodBounds(period: PeriodFilter): { from: string; to: string } | n
 
 const TRIP_TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
 
+const TRIP_TYPE_COLORS: Record<string, string> = {
+  FREIGHT: '#2472CC',
+  PASSENGER: '#3BD48A',
+  SHUNTING: '#F5B301',
+  DEAD_RUN: '#5B6A7E',
+};
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
 function computeElec(trip: LocalTrip): number | null {
@@ -425,6 +432,7 @@ export default function TripsScreen() {
   // ── Render item ─────────────────────────────────────────────────────────────
 
   function renderItem({ item }: { item: LocalTrip }) {
+    const stripeColor = TRIP_TYPE_COLORS[item.tripType] ?? C.textMute;
     const elec = computeElec(item);
     const extraParts: string[] = [];
     if (item.trainNumber) extraParts.push(`№${item.trainNumber}`);
@@ -442,25 +450,28 @@ export default function TripsScreen() {
         delayLongPress={500}
         activeOpacity={0.75}
       >
-        <View style={s.cardHeader}>
-          <Text style={s.route} numberOfLines={1}>
-            {item.routeFrom} — {item.routeTo}
+        <View style={[s.typeStripe, { backgroundColor: stripeColor }]} />
+        <View style={s.cardContent}>
+          <View style={s.cardHeader}>
+            <Text style={s.route} numberOfLines={1}>
+              {item.routeFrom} — {item.routeTo}
+            </Text>
+            {!item.syncedAt && <View style={s.unsyncedDot} />}
+          </View>
+          <Text style={s.meta}>
+            {formatDateRu(item.date)} · {item.appearanceTime ?? item.startTime ?? '—'}–{item.handoverTime ?? item.endTime ?? '—'}
           </Text>
-          {!item.syncedAt && <View style={s.unsyncedDot} />}
-        </View>
-        <Text style={s.meta}>
-          {formatDateRu(item.date)} · {item.appearanceTime ?? item.startTime ?? '—'}–{item.handoverTime ?? item.endTime ?? '—'}
-        </Text>
-        {extraParts.length > 0 && (
-          <Text style={s.metaExtra} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
-        )}
-        <View style={s.cardFooter}>
-          <Text style={s.chip}>{TripTypeLabelMap[item.tripType]}</Text>
-          <View style={s.cardFooterRight}>
-            {elec !== null && (
-              <Text style={s.elecText}>⚡ {elec.toFixed(0)} кВт·ч</Text>
-            )}
-            <Text style={s.duration}>{formatDuration(item.durationMinutes ?? 0)}</Text>
+          {extraParts.length > 0 && (
+            <Text style={s.metaExtra} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
+          )}
+          <View style={s.cardFooter}>
+            <Text style={s.chip}>{TripTypeLabelMap[item.tripType]}</Text>
+            <View style={s.cardFooterRight}>
+              {elec !== null && (
+                <Text style={s.elecText}>⚡ {elec.toFixed(0)} кВт·ч</Text>
+              )}
+              <Text style={s.duration}>{formatDuration(item.durationMinutes ?? 0)}</Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -757,7 +768,12 @@ const s = StyleSheet.create({
   summaryDot: { color: C.line, fontSize: 13 },
 
   // Cards
-  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 10 },
+  card: {
+    backgroundColor: C.card, borderRadius: 14, marginBottom: 10,
+    flexDirection: 'row', overflow: 'hidden',
+  },
+  typeStripe: { width: 4 },
+  cardContent: { flex: 1, padding: 16 },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', gap: 8,
@@ -773,7 +789,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
   },
   elecText: { color: C.green, fontSize: 12 },
-  duration: { color: C.textDim, fontSize: 13 },
+  duration: { color: C.textDim, fontSize: 16, fontWeight: '600' },
   empty: { color: C.textMute, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });
 

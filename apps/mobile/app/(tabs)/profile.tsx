@@ -14,6 +14,25 @@ import { http } from '@/services/api.service';
 import { backupStorage, tokenStorage } from '@/services/storage.service';
 import { UpdateProfileDtoSchema, UpdateProfileDto } from '@railcrew/contracts';
 
+const C = {
+  bg: '#0B0F14',
+  surface: '#111820',
+  card: '#192030',
+  line: '#263245',
+  text: '#E8EEF5',
+  textDim: '#8A99AD',
+  textMute: '#5B6A7E',
+  blue: '#2472CC',
+  blueDark: '#1A5BA8',
+  danger: '#FF5A5F',
+};
+
+function getInitials(first?: string | null, last?: string | null): string {
+  const f = first?.trim()[0]?.toUpperCase() ?? '';
+  const l = last?.trim()[0]?.toUpperCase() ?? '';
+  return (f + l) || '?';
+}
+
 export default function ProfileScreen() {
   const { user, profile, logout } = useAuthStore();
   const { loadLocal } = useTripsStore();
@@ -26,6 +45,8 @@ export default function ProfileScreen() {
 
   const [backupBusy, setBackupBusy] = useState(false);
   const [restoreBusy, setRestoreBusy] = useState(false);
+
+  const initials = getInitials(profile?.firstName, profile?.lastName);
 
   async function handleSaveProfile() {
     const token = await tokenStorage.get();
@@ -117,6 +138,18 @@ export default function ProfileScreen() {
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={s.header}>Профиль</Text>
 
+      {/* Avatar */}
+      <View style={s.avatarWrap}>
+        <View style={s.avatar}>
+          <Text style={s.avatarText}>{initials}</Text>
+        </View>
+        {(profile?.firstName || profile?.lastName) && (
+          <Text style={s.avatarName}>
+            {[profile.firstName, profile.lastName].filter(Boolean).join(' ')}
+          </Text>
+        )}
+      </View>
+
       {/* Инфо пользователя */}
       <View style={s.card}>
         <Text style={s.email}>{user?.email}</Text>
@@ -161,7 +194,7 @@ export default function ProfileScreen() {
           disabled={restoreBusy}
         >
           {restoreBusy
-            ? <ActivityIndicator color="#3b82f6" />
+            ? <ActivityIndicator color={C.blue} />
             : <Text style={s.btnOutlineText}>Восстановить из файла</Text>}
         </TouchableOpacity>
       </View>
@@ -197,37 +230,49 @@ function Field({
         onChangeText={onChange}
         keyboardType={keyboardType}
         placeholder={placeholder}
-        placeholderTextColor="#475569"
+        placeholderTextColor={C.textMute}
       />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0f172a', padding: 16 },
+  screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
   header: {
-    color: '#f1f5f9', fontSize: 24, fontWeight: 'bold',
-    marginTop: 48, marginBottom: 16,
+    color: C.text, fontSize: 24, fontWeight: 'bold',
+    marginTop: 48, marginBottom: 20,
   },
-  card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 12 },
-  cardTitle: { color: '#f1f5f9', fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  cardHint: { color: '#475569', fontSize: 13, marginBottom: 12 },
-  email: { color: '#f1f5f9', fontSize: 16, fontWeight: '600' },
-  role: { color: '#64748b', fontSize: 14, marginTop: 4 },
-  label: { color: '#94a3b8', fontSize: 13, marginBottom: 4 },
+
+  avatarWrap: { alignItems: 'center', marginBottom: 20 },
+  avatar: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: C.blueDark,
+    borderWidth: 2, borderColor: C.blue,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10,
+  },
+  avatarText: { color: '#fff', fontSize: 26, fontWeight: '700' },
+  avatarName: { color: C.text, fontSize: 18, fontWeight: '600' },
+
+  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 12 },
+  cardTitle: { color: C.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  cardHint: { color: C.textMute, fontSize: 13, marginBottom: 12 },
+  email: { color: C.text, fontSize: 16, fontWeight: '600' },
+  role: { color: C.textDim, fontSize: 14, marginTop: 4 },
+  label: { color: C.textDim, fontSize: 13, marginBottom: 4 },
   input: {
-    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
-    padding: 12, fontSize: 15,
+    backgroundColor: C.surface, color: C.text, borderRadius: 10,
+    padding: 12, fontSize: 15, borderWidth: 1, borderColor: C.line,
   },
   btn: {
-    backgroundColor: '#3b82f6', borderRadius: 10, padding: 14,
+    backgroundColor: C.blue, borderRadius: 10, padding: 14,
     alignItems: 'center', marginTop: 8,
   },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   btnOutline: {
-    backgroundColor: 'transparent', borderWidth: 1, borderColor: '#3b82f6',
+    backgroundColor: 'transparent', borderWidth: 1, borderColor: C.blue,
   },
-  btnOutlineText: { color: '#3b82f6', fontSize: 15, fontWeight: '600' },
+  btnOutlineText: { color: C.blue, fontSize: 15, fontWeight: '600' },
   logoutBtn: { padding: 16, alignItems: 'center' },
-  logoutText: { color: '#ef4444', fontSize: 15, fontWeight: '600' },
+  logoutText: { color: C.danger, fontSize: 15, fontWeight: '600' },
 });

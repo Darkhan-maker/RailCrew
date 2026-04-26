@@ -472,7 +472,7 @@ export default function AddTripScreen() {
             <Label style={s.colLabel}>Вес поезда, т</Label>
             <TextInput
               style={s.input}
-              placeholder="0"
+              placeholder=""
               placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.trainWeight}
@@ -484,7 +484,7 @@ export default function AddTripScreen() {
             <Label style={s.colLabel}>Количество осей</Label>
             <TextInput
               style={s.input}
-              placeholder="0"
+              placeholder=""
               placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.axleCount}
@@ -628,7 +628,7 @@ export default function AddTripScreen() {
                 <Label style={s.colLabel}>Начало, кВт·ч</Label>
                 <TextInput
                   style={s.input}
-                  placeholder="0"
+                  placeholder=""
                   placeholderTextColor={C.textMute}
                   keyboardType="numeric"
                   value={sm.start}
@@ -640,7 +640,7 @@ export default function AddTripScreen() {
                 <Label style={s.colLabel}>Конец, кВт·ч</Label>
                 <TextInput
                   style={s.input}
-                  placeholder="0"
+                  placeholder=""
                   placeholderTextColor={C.textMute}
                   keyboardType="numeric"
                   value={sm.end}
@@ -696,7 +696,7 @@ export default function AddTripScreen() {
             <Label style={s.colLabel}>При выходе</Label>
             <TextInput
               style={s.input}
-              placeholder="0"
+              placeholder=""
               placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.checkpointOut}
@@ -708,7 +708,7 @@ export default function AddTripScreen() {
             <Label style={s.colLabel}>При заходе</Label>
             <TextInput
               style={s.input}
-              placeholder="0"
+              placeholder=""
               placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.checkpointIn}
