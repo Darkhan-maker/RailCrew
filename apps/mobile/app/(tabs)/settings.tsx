@@ -8,8 +8,7 @@ import {
   localSalaryStorage, LocalSalaryRule,
 } from '@/services/storage.service';
 import { useAuthStore } from '@/store/auth.store';
-
-// ─── Design tokens ───────────────────────────────────────────────────────────
+import { useLang, Lang } from '@/i18n';
 
 const C = {
   bg: '#0B0F14',
@@ -22,8 +21,6 @@ const C = {
   blue: '#2472CC',
   blueDark: '#1A5BA8',
 };
-
-// ─── Часовые пояса (относительно Москвы) ─────────────────────────────────────
 
 const TIMEZONE_OPTIONS: { label: string; value: number }[] = [
   { label: 'Калининград (МСК−1)', value: -1 },
@@ -43,6 +40,7 @@ const TIMEZONE_OPTIONS: { label: string; value: number }[] = [
 
 export default function SettingsScreen() {
   const { profile, user } = useAuthStore();
+  const { t, lang, setLang } = useLang();
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [salary, setSalary] = useState<LocalSalaryRule | null>(null);
   const [saving, setSaving] = useState(false);
@@ -72,18 +70,17 @@ export default function SettingsScreen() {
   async function handleSave() {
     if (!settings || !salary) return;
 
-    // Валидация
     if (salary.ratePerHour < 0) {
-      Alert.alert('Ошибка', 'Ставка за час не может быть отрицательной');
+      Alert.alert(t.common_error, t.settings_errRate);
       return;
     }
     if (settings.monthlyHoursNorm <= 0 || settings.monthlyHoursNorm > 300) {
-      Alert.alert('Ошибка', 'Норма часов должна быть от 1 до 300');
+      Alert.alert(t.common_error, t.settings_errNorm);
       return;
     }
     if (settings.nightStartHour < 0 || settings.nightStartHour > 23 ||
         settings.nightEndHour < 0 || settings.nightEndHour > 23) {
-      Alert.alert('Ошибка', 'Часы ночного времени: от 0 до 23');
+      Alert.alert(t.common_error, t.settings_errNight);
       return;
     }
 
@@ -93,15 +90,15 @@ export default function SettingsScreen() {
         localSettingsStorage.save(settings),
         localSalaryStorage.save(salary),
       ]);
-      Alert.alert('Готово', 'Настройки сохранены');
+      Alert.alert(t.common_done, t.settings_saved);
     } catch {
-      Alert.alert('Ошибка', 'Не удалось сохранить настройки');
+      Alert.alert(t.common_error, t.settings_saveError);
     } finally {
       setSaving(false);
     }
   }
 
-  const currentTz = TIMEZONE_OPTIONS.find((t) => t.value === settings.timezoneOffsetFromMoscow);
+  const currentTz = TIMEZONE_OPTIONS.find((tz) => tz.value === settings.timezoneOffsetFromMoscow);
 
   const initials = profile
     ? ((profile.firstName?.[0] ?? '') + (profile.lastName?.[0] ?? '')).toUpperCase() || '?'
@@ -109,7 +106,7 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 60 }}>
-      <Text style={s.header}>Настройки</Text>
+      <Text style={s.header}>{t.settings_title}</Text>
 
       {/* ─── Профиль ──────────────────────────────────────────────────────── */}
       {profile && (
@@ -126,12 +123,29 @@ export default function SettingsScreen() {
         </View>
       )}
 
+      {/* ─── Язык / Тіл ───────────────────────────────────────────────────── */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>{t.settings_lang}</Text>
+        <View style={s.langRow}>
+          {(['ru', 'kk'] as Lang[]).map((l) => (
+            <TouchableOpacity
+              key={l}
+              style={[s.langBtn, lang === l && s.langBtnActive]}
+              onPress={() => setLang(l)}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.langBtnText, lang === l && s.langBtnTextActive]}>
+                {l === 'ru' ? t.settings_langRu : t.settings_langKk}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       {/* ─── Часовой пояс ─────────────────────────────────────────────────── */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Часовой пояс</Text>
-        <Text style={s.cardHint}>
-          Разница с московским временем для корректного расчёта переходных поездок
-        </Text>
+        <Text style={s.cardTitle}>{t.settings_timezone}</Text>
+        <Text style={s.cardHint}>{t.settings_timezoneHint}</Text>
 
         <TouchableOpacity
           style={s.selectField}
@@ -172,10 +186,10 @@ export default function SettingsScreen() {
 
       {/* ─── Норма часов ──────────────────────────────────────────────────── */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Норма часов</Text>
-        <Text style={s.cardHint}>Месячная норма рабочих часов по графику</Text>
+        <Text style={s.cardTitle}>{t.settings_hoursNorm}</Text>
+        <Text style={s.cardHint}>{t.settings_hoursNormHint}</Text>
         <NumericField
-          label="Часов в месяц"
+          label={t.settings_hoursPerMonth}
           value={settings.monthlyHoursNorm}
           onChange={(v) => updateSetting('monthlyHoursNorm', v)}
           placeholder="176"
@@ -184,27 +198,25 @@ export default function SettingsScreen() {
 
       {/* ─── Локомотив по умолчанию ───────────────────────────────────────── */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Локомотив по умолчанию</Text>
-        <Text style={s.cardHint}>
-          Будет подставляться при добавлении новой поездки
-        </Text>
+        <Text style={s.cardTitle}>{t.settings_defaultLoco}</Text>
+        <Text style={s.cardHint}>{t.settings_defaultLocoHint}</Text>
         <View style={{ marginBottom: 10 }}>
-          <Text style={s.label}>Модель (серия)</Text>
+          <Text style={s.label}>{t.settings_locoModel}</Text>
           <TextInput
             style={s.input}
             value={settings.defaultLocoModel}
             onChangeText={(v) => updateSetting('defaultLocoModel', v)}
-            placeholder="Например: ВЛ80, КЗ8А, ТЭ33А"
+            placeholder={t.settings_locoModelEx}
             placeholderTextColor={C.textMute}
           />
         </View>
         <View>
-          <Text style={s.label}>Номер</Text>
+          <Text style={s.label}>{t.settings_locoNumber}</Text>
           <TextInput
             style={s.input}
             value={settings.defaultLocoNumber}
             onChangeText={(v) => updateSetting('defaultLocoNumber', v)}
-            placeholder="Например: 0542"
+            placeholder={t.settings_locoNumberEx}
             placeholderTextColor={C.textMute}
           />
         </View>
@@ -214,8 +226,8 @@ export default function SettingsScreen() {
       <View style={s.card}>
         <View style={s.switchRow}>
           <View style={{ flex: 1 }}>
-            <Text style={s.cardTitle}>Учёт ночных часов</Text>
-            <Text style={s.cardHint}>Автоматический подсчёт часов в ночное время</Text>
+            <Text style={s.cardTitle}>{t.settings_nightHours}</Text>
+            <Text style={s.cardHint}>{t.settings_nightHoursHint}</Text>
           </View>
           <Switch
             value={settings.trackNightHours}
@@ -228,7 +240,7 @@ export default function SettingsScreen() {
         {settings.trackNightHours && (
           <View style={s.nightHoursRow}>
             <View style={{ flex: 1 }}>
-              <Text style={s.label}>С (час)</Text>
+              <Text style={s.label}>{t.settings_nightFrom}</Text>
               <TextInput
                 style={s.input}
                 value={String(settings.nightStartHour)}
@@ -243,7 +255,7 @@ export default function SettingsScreen() {
             </View>
             <Text style={s.nightDash}>—</Text>
             <View style={{ flex: 1 }}>
-              <Text style={s.label}>До (час)</Text>
+              <Text style={s.label}>{t.settings_nightTo}</Text>
               <TextInput
                 style={s.input}
                 value={String(settings.nightEndHour)}
@@ -264,10 +276,8 @@ export default function SettingsScreen() {
       <View style={s.card}>
         <View style={s.switchRow}>
           <View style={{ flex: 1 }}>
-            <Text style={s.cardTitle}>Учёт электроэнергии</Text>
-            <Text style={s.cardHint}>
-              Показания счётчиков при приёмке и сдаче локомотива
-            </Text>
+            <Text style={s.cardTitle}>{t.settings_electricity}</Text>
+            <Text style={s.cardHint}>{t.settings_electricityHint}</Text>
           </View>
           <Switch
             value={settings.trackElectricity}
@@ -282,10 +292,8 @@ export default function SettingsScreen() {
       <View style={s.card}>
         <View style={s.switchRow}>
           <View style={{ flex: 1 }}>
-            <Text style={s.cardTitle}>Следование пассажиром</Text>
-            <Text style={s.cardHint}>
-              Дополнительные поля для учёта выезда/прибытия пассажиром
-            </Text>
+            <Text style={s.cardTitle}>{t.settings_passengerTravel}</Text>
+            <Text style={s.cardHint}>{t.settings_passengerTravelHint}</Text>
           </View>
           <Switch
             value={settings.trackPassengerTravel}
@@ -298,39 +306,37 @@ export default function SettingsScreen() {
 
       {/* ─── Расчёт зарплаты ──────────────────────────────────────────────── */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Расчёт зарплаты</Text>
-        <Text style={s.cardHint}>
-          Коэффициенты и ставки для ориентировочного подсчёта
-        </Text>
+        <Text style={s.cardTitle}>{t.settings_salary}</Text>
+        <Text style={s.cardHint}>{t.settings_salaryHint}</Text>
 
         <NumericField
-          label="Ставка за час (₸)"
+          label={t.settings_ratePerHour}
           value={salary.ratePerHour}
           onChange={(v) => updateSalary('ratePerHour', v)}
           placeholder="2500"
         />
         <NumericField
-          label="Бонус за поездку (₸)"
+          label={t.settings_tripBonus}
           value={salary.tripBonus}
           onChange={(v) => updateSalary('tripBonus', v)}
           placeholder="500"
         />
         <NumericField
-          label="Ночной коэффициент"
+          label={t.settings_nightCoeff}
           value={salary.nightCoefficient}
           onChange={(v) => updateSalary('nightCoefficient', v)}
           placeholder="1.4"
           decimal
         />
         <NumericField
-          label="Коэффициент сверхурочных"
+          label={t.settings_overtimeCoeff}
           value={salary.overtimeCoefficient}
           onChange={(v) => updateSalary('overtimeCoefficient', v)}
           placeholder="1.5"
           decimal
         />
         <NumericField
-          label="Порог сверхурочных (ч/мес)"
+          label={t.settings_overtimeThreshold}
           value={salary.monthlyHoursThreshold}
           onChange={(v) => updateSalary('monthlyHoursThreshold', v)}
           placeholder="176"
@@ -346,13 +352,11 @@ export default function SettingsScreen() {
       >
         {saving
           ? <ActivityIndicator color="#fff" />
-          : <Text style={s.saveBtnText}>Сохранить все настройки</Text>}
+          : <Text style={s.saveBtnText}>{t.settings_saveAll}</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
 }
-
-// ─── Вспомогательные компоненты ──────────────────────────────────────────────
 
 function NumericField({
   label, value, onChange, placeholder, decimal,
@@ -391,8 +395,6 @@ function NumericField({
   );
 }
 
-// ─── Стили ───────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
   header: {
@@ -414,13 +416,22 @@ const s = StyleSheet.create({
   profileName: { color: C.text, fontSize: 16, fontWeight: '600', marginBottom: 2 },
   profileEmail: { color: C.textMute, fontSize: 13 },
 
+  // Language picker
+  langRow: { flexDirection: 'row', gap: 10 },
+  langBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+    borderColor: C.line, alignItems: 'center', backgroundColor: C.surface,
+  },
+  langBtnActive: { backgroundColor: C.blue, borderColor: C.blue },
+  langBtnText: { color: C.textMute, fontSize: 14, fontWeight: '500' },
+  langBtnTextActive: { color: '#fff', fontWeight: '700' },
+
   label: { color: C.textDim, fontSize: 13, marginBottom: 4 },
   input: {
     backgroundColor: C.surface, color: C.text, borderRadius: 10,
     padding: 12, fontSize: 15, borderWidth: 1, borderColor: C.line,
   },
 
-  // Select / Dropdown
   selectField: {
     backgroundColor: C.surface, borderRadius: 10, padding: 12,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -442,18 +453,11 @@ const s = StyleSheet.create({
   optionText: { color: C.textDim, fontSize: 14 },
   optionTextActive: { color: '#fff', fontWeight: '600' },
 
-  // Switch row
-  switchRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-  },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
-  // Night hours
-  nightHoursRow: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12,
-  },
+  nightHoursRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
   nightDash: { color: C.textMute, fontSize: 18, paddingBottom: 12 },
 
-  // Save
   saveBtn: {
     backgroundColor: C.blue, borderRadius: 12, padding: 16,
     alignItems: 'center', marginTop: 4, marginBottom: 20,

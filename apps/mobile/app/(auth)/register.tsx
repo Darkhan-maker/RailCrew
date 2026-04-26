@@ -6,11 +6,7 @@ import { router } from 'expo-router';
 import { authApi } from '@/services/api.service';
 import { useAuthStore } from '@/store/auth.store';
 import { RegisterDtoSchema, UserRole } from '@railcrew/contracts';
-
-const ROLES: { label: string; value: UserRole }[] = [
-  { label: 'Машинист', value: 'DRIVER' },
-  { label: 'Помощник машиниста', value: 'ASSISTANT' },
-];
+import { useLang } from '@/i18n';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
@@ -20,11 +16,17 @@ export default function RegisterScreen() {
   const [role, setRole] = useState<UserRole>('DRIVER');
   const [loading, setLoading] = useState(false);
   const { setAuth } = useAuthStore();
+  const { t } = useLang();
+
+  const ROLES: { label: string; value: UserRole }[] = [
+    { label: t.register_roleDriver, value: 'DRIVER' },
+    { label: t.register_roleAssistant, value: 'ASSISTANT' },
+  ];
 
   async function handleRegister() {
     const result = RegisterDtoSchema.safeParse({ email, password, firstName, lastName, role });
     if (!result.success) {
-      Alert.alert('Ошибка', 'Заполните все поля. Пароль минимум 8 символов.');
+      Alert.alert(t.common_error, t.register_errFill);
       return;
     }
     setLoading(true);
@@ -34,7 +36,7 @@ export default function RegisterScreen() {
       router.replace('/(tabs)');
     } catch (e: unknown) {
       const isNetwork = !!(e as any)?.request && !(e as any)?.response;
-      Alert.alert('Ошибка', isNetwork ? 'Сервер недоступен. Проверьте подключение.' : 'Email уже используется');
+      Alert.alert(t.common_error, isNetwork ? t.register_errNetwork : t.register_errEmail);
     } finally {
       setLoading(false);
     }
@@ -42,20 +44,20 @@ export default function RegisterScreen() {
 
   return (
     <ScrollView contentContainerStyle={s.container}>
-      <Text style={s.title}>Регистрация</Text>
+      <Text style={s.title}>{t.register_title}</Text>
 
-      <TextInput style={s.input} placeholder="Имя" placeholderTextColor="#64748b"
+      <TextInput style={s.input} placeholder={t.register_firstName} placeholderTextColor="#64748b"
         value={firstName} onChangeText={setFirstName} />
-      <TextInput style={s.input} placeholder="Фамилия" placeholderTextColor="#64748b"
+      <TextInput style={s.input} placeholder={t.register_lastName} placeholderTextColor="#64748b"
         value={lastName} onChangeText={setLastName} />
       <TextInput style={s.input} placeholder="Email" placeholderTextColor="#64748b"
         autoCapitalize="none" keyboardType="email-address"
         value={email} onChangeText={setEmail} />
-      <TextInput style={s.input} placeholder="Пароль (мин. 8 символов)"
+      <TextInput style={s.input} placeholder={t.register_password}
         placeholderTextColor="#64748b" secureTextEntry
         value={password} onChangeText={setPassword} />
 
-      <Text style={s.label}>Должность</Text>
+      <Text style={s.label}>{t.register_role}</Text>
       <View style={s.roleRow}>
         {ROLES.map((r) => (
           <TouchableOpacity
@@ -71,11 +73,11 @@ export default function RegisterScreen() {
       </View>
 
       <TouchableOpacity style={s.btn} onPress={handleRegister} disabled={loading}>
-        <Text style={s.btnText}>{loading ? 'Создаем...' : 'Создать аккаунт'}</Text>
+        <Text style={s.btnText}>{loading ? t.register_submitting : t.register_submit}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.back()}>
-        <Text style={s.link}>Уже есть аккаунт? Войти</Text>
+        <Text style={s.link}>{t.register_hasAccount}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

@@ -13,6 +13,7 @@ import { useTripsStore } from '@/store/trips.store';
 import { http } from '@/services/api.service';
 import { backupStorage, tokenStorage } from '@/services/storage.service';
 import { UpdateProfileDtoSchema, UpdateProfileDto } from '@railcrew/contracts';
+import { useLang, pluralTrips } from '@/i18n';
 
 const C = {
   bg: '#0B0F14',
@@ -36,6 +37,7 @@ function getInitials(first?: string | null, last?: string | null): string {
 export default function ProfileScreen() {
   const { user, profile, logout } = useAuthStore();
   const { loadLocal } = useTripsStore();
+  const { t } = useLang();
 
   const [firstName, setFirstName] = useState(profile?.firstName ?? '');
   const [lastName, setLastName] = useState(profile?.lastName ?? '');
@@ -51,21 +53,21 @@ export default function ProfileScreen() {
   async function handleSaveProfile() {
     const token = await tokenStorage.get();
     if (token === 'demo_mode_token') {
-      Alert.alert('Демо-режим', 'В демо-режиме сохранение профиля недоступно');
+      Alert.alert(t.profile_demoMode, t.profile_demoModeMsg);
       return;
     }
     const dto: UpdateProfileDto = { firstName, lastName, employeeId, depot };
     const result = UpdateProfileDtoSchema.safeParse(dto);
     if (!result.success) {
-      Alert.alert('Ошибка', 'Проверьте введённые данные');
+      Alert.alert(t.common_error, t.profile_profileError);
       return;
     }
     setSaving(true);
     try {
       await http.patch('/users/me/profile', result.data);
-      Alert.alert('Готово', 'Профиль обновлён');
+      Alert.alert(t.common_done, t.profile_profileSaved);
     } catch {
-      Alert.alert('Ошибка', 'Не удалось сохранить профиль');
+      Alert.alert(t.common_error, t.profile_profileError);
     } finally {
       setSaving(false);
     }
@@ -74,7 +76,7 @@ export default function ProfileScreen() {
   async function handleExportBackup() {
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
-      Alert.alert('Недоступно', 'Экспорт не поддерживается на этом устройстве');
+      Alert.alert(t.profile_backupUnavailableTitle, t.profile_backupUnavailable);
       return;
     }
     setBackupBusy(true);
@@ -87,10 +89,10 @@ export default function ProfileScreen() {
       });
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/json',
-        dialogTitle: 'Сохранить резервную копию',
+        dialogTitle: t.profile_backup,
       });
     } catch {
-      Alert.alert('Ошибка', 'Не удалось создать резервную копию');
+      Alert.alert(t.common_error, t.profile_backupError);
     } finally {
       setBackupBusy(false);
     }
@@ -98,12 +100,12 @@ export default function ProfileScreen() {
 
   async function handleImportBackup() {
     Alert.alert(
-      'Восстановить из копии',
-      'Текущие данные будут заменены. Продолжить?',
+      t.profile_restoreTitle,
+      t.profile_restoreMsg,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t.common_cancel, style: 'cancel' },
         {
-          text: 'Восстановить',
+          text: t.profile_restore,
           style: 'destructive',
           onPress: async () => {
             setRestoreBusy(true);
@@ -121,10 +123,13 @@ export default function ProfileScreen() {
 
               const { trips, routes } = await backupStorage.import(json);
               await loadLocal();
-              Alert.alert('Готово', `Восстановлено: ${trips} поездок, ${routes} шаблонов`);
+              Alert.alert(
+                t.common_done,
+                `${t.profile_restoredPrefix}${trips} ${pluralTrips(trips, t)}, ${routes}${t.profile_restoredSuffix}`,
+              );
             } catch (e: unknown) {
-              const msg = e instanceof Error ? e.message : 'Не удалось восстановить данные';
-              Alert.alert('Ошибка', msg);
+              const msg = e instanceof Error ? e.message : t.profile_restoreError;
+              Alert.alert(t.common_error, msg);
             } finally {
               setRestoreBusy(false);
             }
@@ -136,7 +141,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={s.header}>Профиль</Text>
+      <Text style={s.header}>{t.profile_title}</Text>
 
       {/* Avatar */}
       <View style={s.avatarWrap}>
@@ -150,33 +155,31 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* Инфо пользователя */}
+      {/* User info */}
       <View style={s.card}>
         <Text style={s.email}>{user?.email}</Text>
         <Text style={s.role}>
-          {user?.role === 'DRIVER' ? 'Машинист' : 'Помощник машиниста'}
+          {user?.role === 'DRIVER' ? t.profile_driver : t.profile_assistant}
         </Text>
       </View>
 
-      {/* Данные профиля */}
+      {/* Profile fields */}
       <View style={s.card}>
-        <Field label="Имя" value={firstName} onChange={setFirstName} />
-        <Field label="Фамилия" value={lastName} onChange={setLastName} />
-        <Field label="Табельный номер" value={employeeId} onChange={setEmployeeId} />
-        <Field label="Депо" value={depot} onChange={setDepot} />
+        <Field label={t.profile_firstName} value={firstName} onChange={setFirstName} />
+        <Field label={t.profile_lastName} value={lastName} onChange={setLastName} />
+        <Field label={t.profile_employeeId} value={employeeId} onChange={setEmployeeId} />
+        <Field label={t.profile_depot} value={depot} onChange={setDepot} />
         <TouchableOpacity style={s.btn} onPress={handleSaveProfile} disabled={saving}>
           {saving
             ? <ActivityIndicator color="#fff" />
-            : <Text style={s.btnText}>Сохранить профиль</Text>}
+            : <Text style={s.btnText}>{t.profile_saveProfile}</Text>}
         </TouchableOpacity>
       </View>
 
-      {/* Резервная копия */}
+      {/* Backup */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Резервная копия</Text>
-        <Text style={s.cardHint}>
-          Сохраняет все поездки, шаблоны маршрутов и настройки в JSON-файл
-        </Text>
+        <Text style={s.cardTitle}>{t.profile_backup}</Text>
+        <Text style={s.cardHint}>{t.profile_backupHint}</Text>
 
         <TouchableOpacity
           style={s.btn}
@@ -185,7 +188,7 @@ export default function ProfileScreen() {
         >
           {backupBusy
             ? <ActivityIndicator color="#fff" />
-            : <Text style={s.btnText}>Создать резервную копию</Text>}
+            : <Text style={s.btnText}>{t.profile_createBackup}</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -195,7 +198,7 @@ export default function ProfileScreen() {
         >
           {restoreBusy
             ? <ActivityIndicator color={C.blue} />
-            : <Text style={s.btnOutlineText}>Восстановить из файла</Text>}
+            : <Text style={s.btnOutlineText}>{t.profile_restoreBackup}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -206,7 +209,7 @@ export default function ProfileScreen() {
           router.replace('/(auth)/login');
         }}
       >
-        <Text style={s.logoutText}>Выйти</Text>
+        <Text style={s.logoutText}>{t.profile_logout}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

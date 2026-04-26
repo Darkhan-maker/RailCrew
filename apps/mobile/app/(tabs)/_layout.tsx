@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLang } from '@/i18n';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -14,6 +15,7 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 8);
   const tabBarHeight = 52 + bottomPad;
+  const { t } = useLang();
 
   return (
     <Tabs
@@ -36,35 +38,35 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Сводка',
+          title: t.nav_summary,
           tabBarIcon: icon('home', 'home-outline'),
         }}
       />
       <Tabs.Screen
         name="trips"
         options={{
-          title: 'Поездки',
+          title: t.nav_trips,
           tabBarIcon: icon('list', 'list-outline'),
         }}
       />
       <Tabs.Screen
         name="add"
         options={{
-          title: 'Добавить',
+          title: t.nav_add,
           tabBarIcon: icon('add-circle', 'add-circle-outline', 28),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Настройки',
+          title: t.nav_settings,
           tabBarIcon: icon('settings', 'settings-outline'),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Профиль',
+          title: t.nav_profile,
           tabBarIcon: icon('person', 'person-outline'),
         }}
       />

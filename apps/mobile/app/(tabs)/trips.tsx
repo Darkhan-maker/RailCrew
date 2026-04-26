@@ -10,7 +10,8 @@ import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips.store';
 import { TripType, TripTypeLabelMap } from '@railcrew/contracts';
 import { LocalTrip } from '@/services/storage.service';
-import { formatDateRu, formatDuration } from '@/utils/date';
+import { formatDateRu } from '@/utils/date';
+import { useLang, pluralTrips, fmtDur, Strings } from '@/i18n';
 
 // ─── Design tokens ───────────────────────────────────────────────────────────
 
@@ -35,13 +36,6 @@ const C = {
 // ─── Period filter ────────────────────────────────────────────────────────────
 
 type PeriodFilter = 'ALL' | 'DAY' | 'WEEK' | 'MONTH';
-
-const PERIOD_LABELS: { label: string; value: PeriodFilter }[] = [
-  { label: 'Все', value: 'ALL' },
-  { label: 'Сегодня', value: 'DAY' },
-  { label: 'Неделя', value: 'WEEK' },
-  { label: 'Месяц', value: 'MONTH' },
-];
 
 function getPeriodBounds(period: PeriodFilter): { from: string; to: string } | null {
   if (period === 'ALL') return null;
@@ -97,7 +91,7 @@ function escapeCSV(val: string | number | null | undefined): string {
   return str;
 }
 
-function tripsToCSV(trips: LocalTrip[]): string {
+function tripsToCSV(trips: LocalTrip[], locally: string): string {
   const header = [
     'Дата', 'Откуда', 'Куда', 'Тип', 'Явка', 'Сдача',
     'Длительность (мин)', 'Примечание', 'Статус',
@@ -113,33 +107,33 @@ function tripsToCSV(trips: LocalTrip[]): string {
       t.handoverTime ?? t.endTime,
       t.durationMinutes,
       t.notes ?? '',
-      t.syncedAt ? 'синхронизировано' : 'локально',
+      t.syncedAt ? 'синхронизировано' : locally,
     ].map(escapeCSV).join(','),
   );
 
   return [header, ...rows].join('\n');
 }
 
-async function exportToCSV(trips: LocalTrip[], periodLabel: string) {
+async function exportToCSV(trips: LocalTrip[], periodLabel: string, t: Strings) {
   if (trips.length === 0) {
-    Alert.alert('Нет данных', 'Нет поездок для экспорта за выбранный период');
+    Alert.alert(t.trips_noData, t.trips_exportNoTrips);
     return;
   }
 
   const isAvailable = await Sharing.isAvailableAsync();
   if (!isAvailable) {
-    Alert.alert('Недоступно', 'Экспорт не поддерживается на этом устройстве');
+    Alert.alert(t.trips_unavailableTitle, t.trips_exportUnavailable);
     return;
   }
 
-  const csv = tripsToCSV(trips);
+  const csv = tripsToCSV(trips, t.trips_locally);
   const fileName = `poezdki_${periodLabel}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
   const fileUri = FileSystem.cacheDirectory + fileName;
 
   await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
   await Sharing.shareAsync(fileUri, {
     mimeType: 'text/csv',
-    dialogTitle: 'Экспорт поездок',
+    dialogTitle: t.trips_title,
     UTI: 'public.comma-separated-values-text',
   });
 }
@@ -170,6 +164,7 @@ function FilterModal({
   tripType: initTripType,
   onApply,
 }: FilterModalProps) {
+  const { t } = useLang();
   const [routeFrom, setRouteFrom] = useState(initRouteFrom);
   const [routeTo, setRouteTo] = useState(initRouteTo);
   const [dateFrom, setDateFrom] = useState(initDateFrom);
@@ -185,6 +180,13 @@ function FilterModal({
       setTripType(initTripType);
     }
   }, [visible]);
+
+  const tripTypeLabel = (type: TripType): string => ({
+    FREIGHT: t.tripType_FREIGHT,
+    PASSENGER: t.tripType_PASSENGER,
+    SHUNTING: t.tripType_SHUNTING,
+    DEAD_RUN: t.tripType_DEAD_RUN,
+  })[type] ?? type;
 
   function handleApply() {
     onApply({ routeFrom, routeTo, dateFrom, dateTo, tripType });
@@ -204,12 +206,12 @@ function FilterModal({
       <View style={ms.overlay}>
         <View style={ms.sheet}>
           <View style={ms.handle} />
-          <Text style={ms.title}>Фильтры</Text>
+          <Text style={ms.title}>{t.trips_modalTitle}</Text>
 
-          <Text style={ms.label}>Станция отправления</Text>
+          <Text style={ms.label}>{t.trips_stationFrom}</Text>
           <TextInput
             style={ms.input}
-            placeholder="Напр.: Алматы"
+            placeholder={t.trips_exFrom}
             placeholderTextColor={C.textMute}
             value={routeFrom}
             onChangeText={setRouteFrom}
@@ -217,10 +219,10 @@ function FilterModal({
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>Станция назначения</Text>
+          <Text style={ms.label}>{t.trips_stationTo}</Text>
           <TextInput
             style={ms.input}
-            placeholder="Напр.: Астана"
+            placeholder={t.trips_exTo}
             placeholderTextColor={C.textMute}
             value={routeTo}
             onChangeText={setRouteTo}
@@ -228,7 +230,7 @@ function FilterModal({
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>Дата от (ГГГГ-ММ-ДД)</Text>
+          <Text style={ms.label}>{t.trips_dateFrom}</Text>
           <TextInput
             style={ms.input}
             placeholder="2025-01-01"
@@ -239,7 +241,7 @@ function FilterModal({
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>Дата до (ГГГГ-ММ-ДД)</Text>
+          <Text style={ms.label}>{t.trips_dateTo}</Text>
           <TextInput
             style={ms.input}
             placeholder="2025-12-31"
@@ -250,24 +252,24 @@ function FilterModal({
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>Тип поездки</Text>
+          <Text style={ms.label}>{t.trips_tripType}</Text>
           <View style={ms.chipWrap}>
             <TouchableOpacity
               style={[ms.chip, tripType === null && ms.chipActive]}
               onPress={() => setTripType(null)}
               activeOpacity={0.75}
             >
-              <Text style={[ms.chipText, tripType === null && ms.chipTextActive]}>Все</Text>
+              <Text style={[ms.chipText, tripType === null && ms.chipTextActive]}>{t.trips_all}</Text>
             </TouchableOpacity>
-            {TRIP_TYPES.map((t) => (
+            {TRIP_TYPES.map((tripT) => (
               <TouchableOpacity
-                key={t}
-                style={[ms.chip, tripType === t && ms.chipActive]}
-                onPress={() => setTripType(tripType === t ? null : t)}
+                key={tripT}
+                style={[ms.chip, tripType === tripT && ms.chipActive]}
+                onPress={() => setTripType(tripType === tripT ? null : tripT)}
                 activeOpacity={0.75}
               >
-                <Text style={[ms.chipText, tripType === t && ms.chipTextActive]}>
-                  {TripTypeLabelMap[t]}
+                <Text style={[ms.chipText, tripType === tripT && ms.chipTextActive]}>
+                  {tripTypeLabel(tripT)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -275,10 +277,10 @@ function FilterModal({
 
           <View style={ms.actions}>
             <TouchableOpacity style={ms.resetBtn} onPress={handleReset} activeOpacity={0.75}>
-              <Text style={ms.resetBtnText}>Сбросить</Text>
+              <Text style={ms.resetBtnText}>{t.trips_modalReset}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={ms.applyBtn} onPress={handleApply} activeOpacity={0.75}>
-              <Text style={ms.applyBtnText}>Применить</Text>
+              <Text style={ms.applyBtnText}>{t.trips_modalApply}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -291,6 +293,21 @@ function FilterModal({
 
 export default function TripsScreen() {
   const { trips, isLoading, loadLocal, syncPending, deleteTrip } = useTripsStore();
+  const { t } = useLang();
+
+  const PERIOD_LABELS = useMemo(() => [
+    { label: t.trips_all, value: 'ALL' as PeriodFilter },
+    { label: t.dashboard_today, value: 'DAY' as PeriodFilter },
+    { label: t.dashboard_week, value: 'WEEK' as PeriodFilter },
+    { label: t.dashboard_month, value: 'MONTH' as PeriodFilter },
+  ], [t]);
+
+  const tripTypeLabel = (type: TripType): string => ({
+    FREIGHT: t.tripType_FREIGHT,
+    PASSENGER: t.tripType_PASSENGER,
+    SHUNTING: t.tripType_SHUNTING,
+    DEAD_RUN: t.tripType_DEAD_RUN,
+  })[type] ?? type;
 
   // ── Filter state ────────────────────────────────────────────────────────────
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
@@ -301,7 +318,6 @@ export default function TripsScreen() {
   const [multiSectionOnly, setMultiSectionOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Modal filter state
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [modalRouteFrom, setModalRouteFrom] = useState('');
   const [modalRouteTo, setModalRouteTo] = useState('');
@@ -338,15 +354,12 @@ export default function TripsScreen() {
   const filtered = useMemo(() => {
     let result = trips;
 
-    // Period
     const bounds = getPeriodBounds(period);
     if (bounds) result = result.filter((t) => t.date >= bounds.from && t.date <= bounds.to);
 
-    // Modal date range (overrides period for exact range)
     if (modalDateFrom) result = result.filter((t) => t.date >= modalDateFrom);
     if (modalDateTo) result = result.filter((t) => t.date <= modalDateTo);
 
-    // Text search — route stations, loco, train number, notes
     const q = search.trim().toLowerCase();
     if (q) {
       result = result.filter((t) =>
@@ -359,7 +372,6 @@ export default function TripsScreen() {
       );
     }
 
-    // Modal station filters
     if (modalRouteFrom) {
       const rf = modalRouteFrom.trim().toLowerCase();
       result = result.filter((t) => t.routeFrom.toLowerCase().includes(rf));
@@ -369,17 +381,11 @@ export default function TripsScreen() {
       result = result.filter((t) => t.routeTo.toLowerCase().includes(rt));
     }
 
-    // Trip type (chips row or modal)
     const effectiveTripType = modalTripType ?? tripTypeFilter;
     if (effectiveTripType) result = result.filter((t) => t.tripType === effectiveTripType);
 
-    // Locomotive model
     if (locoFilter) result = result.filter((t) => t.locoModel === locoFilter);
-
-    // Unsynced only
     if (unsyncedOnly) result = result.filter((t) => !t.syncedAt);
-
-    // Multi-section only (sectionCount > 1)
     if (multiSectionOnly) result = result.filter((t) => (t.sectionCount ?? 1) > 1);
 
     return result;
@@ -391,7 +397,6 @@ export default function TripsScreen() {
     [filtered],
   );
 
-  // Unique loco models across ALL trips (not filtered) — used to decide whether to show the chip row
   const locoModels = useMemo(() => {
     const models = new Set<string>();
     for (const t of trips) {
@@ -404,11 +409,11 @@ export default function TripsScreen() {
 
   async function handleExport() {
     setExporting(true);
-    const periodLabel = PERIOD_LABELS.find((p) => p.value === period)?.label.toLowerCase() ?? 'все';
+    const periodLabel = PERIOD_LABELS.find((p) => p.value === period)?.label.toLowerCase() ?? 'all';
     try {
-      await exportToCSV(filtered, periodLabel);
+      await exportToCSV(filtered, periodLabel, t);
     } catch {
-      Alert.alert('Ошибка', 'Не удалось создать файл экспорта');
+      Alert.alert(t.common_error, t.trips_exportError);
     } finally {
       setExporting(false);
     }
@@ -416,12 +421,12 @@ export default function TripsScreen() {
 
   function handleDeleteItem(item: LocalTrip) {
     Alert.alert(
-      'Удалить поездку?',
-      'Это действие нельзя отменить.',
+      t.trips_deleteTitle,
+      t.trips_deleteMsg,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t.common_cancel, style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t.detail_deleteTrip,
           style: 'destructive',
           onPress: () => deleteTrip(item.id),
         },
@@ -465,12 +470,12 @@ export default function TripsScreen() {
             <Text style={s.metaExtra} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
           )}
           <View style={s.cardFooter}>
-            <Text style={s.chip}>{TripTypeLabelMap[item.tripType]}</Text>
+            <Text style={s.chip}>{tripTypeLabel(item.tripType)}</Text>
             <View style={s.cardFooterRight}>
               {elec !== null && (
                 <Text style={s.elecText}>⚡ {elec.toFixed(0)} кВт·ч</Text>
               )}
-              <Text style={s.duration}>{formatDuration(item.durationMinutes ?? 0)}</Text>
+              <Text style={s.duration}>{fmtDur(item.durationMinutes ?? 0, t)}</Text>
             </View>
           </View>
         </View>
@@ -481,11 +486,11 @@ export default function TripsScreen() {
   // ── Empty text ──────────────────────────────────────────────────────────────
 
   const emptyText = useMemo(() => {
-    if (search.trim()) return `Нет поездок по запросу «${search.trim()}»`;
-    if (hasActiveFilters) return 'Нет поездок по выбранным фильтрам';
-    if (period === 'ALL') return 'Поездок нет. Добавьте первую!';
-    return 'Нет поездок за выбранный период';
-  }, [search, hasActiveFilters, period]);
+    if (search.trim()) return `${t.trips_emptySearch} «${search.trim()}»`;
+    if (hasActiveFilters) return t.trips_emptyFilter;
+    if (period === 'ALL') return t.trips_emptyAll;
+    return t.trips_emptyPeriod;
+  }, [search, hasActiveFilters, period, t]);
 
   // ── JSX ─────────────────────────────────────────────────────────────────────
 
@@ -494,7 +499,7 @@ export default function TripsScreen() {
 
       {/* Header row */}
       <View style={s.topRow}>
-        <Text style={s.header}>История поездок</Text>
+        <Text style={s.header}>{t.trips_title}</Text>
         <View style={s.topRowActions}>
           <TouchableOpacity
             style={[s.filterBtn, hasModalFilters && s.filterBtnActive]}
@@ -502,7 +507,7 @@ export default function TripsScreen() {
             activeOpacity={0.75}
           >
             <Text style={[s.filterBtnText, hasModalFilters && s.filterBtnTextActive]}>
-              {hasModalFilters ? 'Фильтры ●' : 'Фильтры'}
+              {hasModalFilters ? t.trips_filtersActive : t.trips_filters}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -522,7 +527,7 @@ export default function TripsScreen() {
       <View style={s.searchRow}>
         <TextInput
           style={s.searchInput}
-          placeholder="Поиск по маршруту, локомотиву, заметкам..."
+          placeholder={t.trips_search}
           placeholderTextColor={C.textMute}
           value={search}
           onChangeText={setSearch}
@@ -567,24 +572,24 @@ export default function TripsScreen() {
           activeOpacity={0.75}
         >
           <Text style={[s.filterChipText, tripTypeFilter === null && s.filterChipTextActive]}>
-            Все типы
+            {t.trips_allTypes}
           </Text>
         </TouchableOpacity>
-        {TRIP_TYPES.map((t) => (
+        {TRIP_TYPES.map((tripT) => (
           <TouchableOpacity
-            key={t}
-            style={[s.filterChip, tripTypeFilter === t && s.filterChipActive]}
-            onPress={() => setTripTypeFilter(tripTypeFilter === t ? null : t)}
+            key={tripT}
+            style={[s.filterChip, tripTypeFilter === tripT && s.filterChipActive]}
+            onPress={() => setTripTypeFilter(tripTypeFilter === tripT ? null : tripT)}
             activeOpacity={0.75}
           >
-            <Text style={[s.filterChipText, tripTypeFilter === t && s.filterChipTextActive]}>
-              {TripTypeLabelMap[t]}
+            <Text style={[s.filterChipText, tripTypeFilter === tripT && s.filterChipTextActive]}>
+              {tripTypeLabel(tripT)}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Locomotive model chips — only when 2+ distinct models recorded */}
+      {/* Locomotive model chips */}
       {locoModels.length > 1 && (
         <ScrollView
           horizontal
@@ -598,7 +603,7 @@ export default function TripsScreen() {
             activeOpacity={0.75}
           >
             <Text style={[s.filterChipText, locoFilter === null && s.filterChipTextActive]}>
-              Все лок.
+              {t.trips_allLocos}
             </Text>
           </TouchableOpacity>
           {locoModels.map((model) => (
@@ -624,7 +629,7 @@ export default function TripsScreen() {
           activeOpacity={0.75}
         >
           <Text style={[s.toggleChipText, unsyncedOnly && s.toggleChipTextActive]}>
-            Не синхр.
+            {t.trips_unsynced}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -633,12 +638,12 @@ export default function TripsScreen() {
           activeOpacity={0.75}
         >
           <Text style={[s.toggleChipText, multiSectionOnly && s.toggleChipTextActive]}>
-            Много секций
+            {t.trips_multiSection}
           </Text>
         </TouchableOpacity>
         {hasActiveFilters && (
           <TouchableOpacity style={s.clearBtn} onPress={clearFilters} activeOpacity={0.75}>
-            <Text style={s.clearBtnText}>Сбросить</Text>
+            <Text style={s.clearBtnText}>{t.trips_clear}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -647,10 +652,10 @@ export default function TripsScreen() {
       {filtered.length > 0 && (
         <View style={s.summary}>
           <Text style={s.summaryText}>
-            {filtered.length} {pluralTrips(filtered.length)}
+            {filtered.length} {pluralTrips(filtered.length, t)}
           </Text>
           <Text style={s.summaryDot}>·</Text>
-          <Text style={s.summaryText}>{formatDuration(totalMinutes)}</Text>
+          <Text style={s.summaryText}>{fmtDur(totalMinutes, t)}</Text>
         </View>
       )}
 
@@ -691,16 +696,6 @@ export default function TripsScreen() {
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function pluralTrips(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'поездка';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'поездки';
-  return 'поездок';
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -725,7 +720,6 @@ const s = StyleSheet.create({
   },
   exportBtnText: { color: C.textMute, fontSize: 13, fontWeight: '600' },
 
-  // Search
   searchRow: { marginBottom: 10 },
   searchInput: {
     backgroundColor: C.card, color: C.text, borderRadius: 10,
@@ -733,7 +727,6 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.line,
   },
 
-  // Chip rows (scrollable)
   chipScrollView: { flexGrow: 0, marginBottom: 8 },
   chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
   filterChip: {
@@ -744,7 +737,6 @@ const s = StyleSheet.create({
   filterChipText: { color: C.textMute, fontSize: 13 },
   filterChipTextActive: { color: '#fff', fontWeight: '600' },
 
-  // Toggle chips + clear
   toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' },
   toggleChip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
@@ -759,7 +751,6 @@ const s = StyleSheet.create({
   },
   clearBtnText: { color: C.danger, fontSize: 12 },
 
-  // Summary row
   summary: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 10, paddingHorizontal: 2,
@@ -767,7 +758,6 @@ const s = StyleSheet.create({
   summaryText: { color: C.textDim, fontSize: 13 },
   summaryDot: { color: C.line, fontSize: 13 },
 
-  // Cards
   card: {
     backgroundColor: C.card, borderRadius: 14, marginBottom: 10,
     flexDirection: 'row', overflow: 'hidden',

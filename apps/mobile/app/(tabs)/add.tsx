@@ -13,8 +13,9 @@ import {
   localSettingsStorage, LocalSettings,
   LocalCreateTripDto,
 } from '@/services/storage.service';
-import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema, AppearanceType, AppearanceTypeLabelMap } from '@railcrew/contracts';
+import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema, AppearanceType } from '@railcrew/contracts';
 import { todayISO } from '@/utils/date';
+import { useLang, fmtDur } from '@/i18n';
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
 
@@ -43,13 +44,6 @@ function calcDurationFull(startDate: string, startTime: string, endDate: string,
   const diffMin = Math.round((end.getTime() - start.getTime()) / 60000);
   return diffMin > 0 ? diffMin : null;
 }
-
-function formatDurMin(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
-}
-
 
 function parseDateStr(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -113,6 +107,8 @@ function validateSectionMeters(meters: SectionMeterStr[]): string | null {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AddTripScreen() {
+  const { t } = useLang();
+
   const params = useLocalSearchParams<{
     routeFrom?: string; routeTo?: string; tripType?: TripType; notes?: string;
     trainNumber?: string; trainWeight?: string; axleCount?: string;
@@ -121,7 +117,6 @@ export default function AddTripScreen() {
 
   const today = todayISO();
 
-  // Core trip fields (sent to API via Zod schema)
   const [fields, setFields] = useState<Partial<CreateTripDto>>({
     status: 'CONFIRMED',
     ...(params.routeFrom ? { routeFrom: params.routeFrom } : {}),
@@ -129,7 +124,6 @@ export default function AddTripScreen() {
     ...(params.tripType ? { tripType: params.tripType } : {}),
   });
 
-  // Mobile-only structured extras — pre-filled from duplicate params when present
   const [extended, setExtended] = useState<ExtendedFields>({
     trainNumber: params.trainNumber ?? '',
     trainWeight: params.trainWeight ?? '',
@@ -143,13 +137,11 @@ export default function AddTripScreen() {
     passengerArrivalTime: '',
   });
 
-  // Work-cycle timestamps
   const [appearanceDate, setAppearanceDate] = useState(today);
   const [appearanceTime, setAppearanceTime] = useState('');
   const [handoverDate, setHandoverDate] = useState(today);
   const [handoverTime, setHandoverTime] = useState('');
 
-  // Section count + per-section electricity meters — pre-filled from duplicate params
   const initSectionCount = ((): 1 | 2 | 3 => {
     const n = parseInt(params.sectionCount ?? '', 10);
     return (n === 2 || n === 3) ? n : 1;
@@ -184,16 +176,15 @@ export default function AddTripScreen() {
     });
   }, []);
 
-  // Validate appearance → handover ordering
   useEffect(() => {
     if (appearanceTime && handoverTime) {
       const dur = calcDurationFull(appearanceDate, appearanceTime, handoverDate, handoverTime);
-      setTimeError(dur === null ? 'Сдача не может быть раньше явки' : '');
+      setTimeError(dur === null ? t.add_timeError : '');
     } else {
       setTimeError('');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appearanceDate, appearanceTime, handoverDate, handoverTime]);
+  }, [appearanceDate, appearanceTime, handoverDate, handoverTime, t]);
 
   function setF(key: keyof CreateTripDto, value: string | number | TripType | AppearanceType | undefined) {
     setFields((f) => ({ ...f, [key]: value }));
@@ -235,12 +226,12 @@ export default function AddTripScreen() {
   async function handleSaveTemplate() {
     const { routeFrom, routeTo, tripType } = fields;
     if (!routeFrom?.trim() || !routeTo?.trim() || !tripType) {
-      Alert.alert('Заполните маршрут', 'Укажите станции и тип поездки');
+      Alert.alert(t.add_fillRoute, t.add_fillRouteMsg);
       return;
     }
     const saved = await localRoutesStorage.save({ routeFrom, routeTo, tripType });
     setRoutes((prev) => (prev.find((r) => r.id === saved.id) ? prev : [saved, ...prev]));
-    Alert.alert('Готово', 'Шаблон сохранён');
+    Alert.alert(t.common_done, t.add_templateSaved);
   }
 
   async function handleRemoveTemplate(id: string) {
@@ -284,14 +275,22 @@ export default function AddTripScreen() {
     return undefined;
   }
 
+  function pickerLabel(mode: PickerMode): string {
+    switch (mode) {
+      case 'appearanceDate': return t.add_appearanceDate;
+      case 'appearanceTime': return t.add_appearanceTime;
+      case 'handoverDate': return t.add_handoverDate;
+      case 'handoverTime': return t.add_handoverTime;
+      default: return '';
+    }
+  }
+
   const isDatePicker = pickerMode === 'appearanceDate' || pickerMode === 'handoverDate';
 
-  // Cycle duration: appearance → handover
   const totalCycleMin = appearanceTime && handoverTime
     ? calcDurationFull(appearanceDate, appearanceTime, handoverDate, handoverTime)
     : null;
 
-  // Per-section consumption
   const sectionConsumptions = sectionMeters.map(({ start, end }) => {
     if (!start || !end || !isNumericStr(start) || !isNumericStr(end)) return null;
     const val = parseFloat(end) - parseFloat(start);
@@ -301,20 +300,31 @@ export default function AddTripScreen() {
     ? sectionConsumptions.reduce<number>((sum, c) => sum + (c ?? 0), 0)
     : null;
 
-  async function handleSave() {
-    if (timeError) { Alert.alert('Ошибка времени', timeError); return; }
+  const tripTypeLabel = (type: TripType): string => ({
+    FREIGHT: t.tripType_FREIGHT,
+    PASSENGER: t.tripType_PASSENGER,
+    SHUNTING: t.tripType_SHUNTING,
+    DEAD_RUN: t.tripType_DEAD_RUN,
+  })[type] ?? type;
 
-    if (!isNumericStr(extended.trainWeight)) { Alert.alert('Ошибка данных', 'Вес поезда должен быть числом'); return; }
-    if (!isNumericStr(extended.axleCount)) { Alert.alert('Ошибка данных', 'Количество осей должно быть числом'); return; }
-    if (!isNumericStr(extended.lunchBreakMinutes)) { Alert.alert('Ошибка данных', 'Обеденный перерыв должен быть числом'); return; }
-    if (!isNumericStr(extended.checkpointOut)) { Alert.alert('Ошибка данных', 'Проследование КП при выходе должно быть числом'); return; }
-    if (!isNumericStr(extended.checkpointIn)) { Alert.alert('Ошибка данных', 'Проследование КП при заходе должно быть числом'); return; }
+  const appearanceTypeLabel = (type: AppearanceType): string => ({
+    HOME: t.appearanceType_HOME,
+    TURNAROUND: t.appearanceType_TURNAROUND,
+  })[type] ?? type;
+
+  async function handleSave() {
+    if (timeError) { Alert.alert(t.common_error, timeError); return; }
+
+    if (!isNumericStr(extended.trainWeight)) { Alert.alert(t.common_error, t.add_errWeight); return; }
+    if (!isNumericStr(extended.axleCount)) { Alert.alert(t.common_error, t.add_errAxle); return; }
+    if (!isNumericStr(extended.lunchBreakMinutes)) { Alert.alert(t.common_error, t.add_errLunch); return; }
+    if (!isNumericStr(extended.checkpointOut)) { Alert.alert(t.common_error, t.add_errCheckpointOut); return; }
+    if (!isNumericStr(extended.checkpointIn)) { Alert.alert(t.common_error, t.add_errCheckpointIn); return; }
 
     const meterErr = validateSectionMeters(sectionMeters);
-    if (meterErr) { Alert.alert('Ошибка счётчиков', meterErr); return; }
+    if (meterErr) { Alert.alert(t.add_errMeters, meterErr); return; }
 
     const combinedNotes = buildNotes(userNotes, extended);
-    // Derive trip date/time from work-cycle timestamps
     const derivedDate = appearanceDate;
     const derivedEndDate = handoverDate !== appearanceDate ? handoverDate : undefined;
     const cycleMin = (appearanceTime && handoverTime)
@@ -330,7 +340,7 @@ export default function AddTripScreen() {
       notes: combinedNotes || undefined,
     });
     if (!result.success) {
-      Alert.alert('Заполните все поля', result.error.issues.map((i) => i.message).join('\n'));
+      Alert.alert(t.add_fillFields, result.error.issues.map((i) => i.message).join('\n'));
       return;
     }
 
@@ -380,9 +390,9 @@ export default function AddTripScreen() {
 
     if (savedOffline) {
       Alert.alert(
-        'Сохранено локально',
-        'Сервер недоступен. Поездка сохранена на устройстве и синхронизируется позже.',
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/trips') }],
+        t.add_savedLocally,
+        t.add_savedLocallyMsg,
+        [{ text: t.common_ok, onPress: () => router.replace('/(tabs)/trips') }],
       );
     } else {
       router.replace('/(tabs)/trips');
@@ -391,18 +401,18 @@ export default function AddTripScreen() {
 
   return (
     <ScrollView style={s.screen} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
-      <Text style={s.header}>Новая поездка</Text>
+      <Text style={s.header}>{t.add_title}</Text>
 
       {/* ─── Шаблоны ─────────────────────────────────────── */}
       {routes.length > 0 && (
         <Section>
-          <Label>Шаблоны маршрутов</Label>
+          <Label>{t.add_templates}</Label>
           <View style={{ gap: 8 }}>
             {routes.map((r) => (
               <View key={r.id} style={s.templateRow}>
                 <TouchableOpacity style={s.templateChip} onPress={() => applyTemplate(r)} activeOpacity={0.75}>
                   <Text style={s.templateText} numberOfLines={1}>{r.routeFrom} → {r.routeTo}</Text>
-                  <Text style={s.templateSub}>{TripTypeLabelMap[r.tripType]}</Text>
+                  <Text style={s.templateSub}>{tripTypeLabel(r.tripType)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleRemoveTemplate(r.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Text style={s.removeText}>✕</Text>
@@ -414,16 +424,16 @@ export default function AddTripScreen() {
       )}
 
       {/* ─── 1: Маршрут ──────────────────────────────────── */}
-      <Section title="Маршрут" step={1}>
+      <Section title={t.add_secRoute} step={1}>
         <View style={s.routeHeader}>
-          <Label style={{ marginTop: 0 }}>Станции</Label>
+          <Label style={{ marginTop: 0 }}>{t.add_stations}</Label>
           <TouchableOpacity onPress={handleSaveTemplate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={s.saveTemplate}>+ шаблон</Text>
+            <Text style={s.saveTemplate}>{t.add_addTemplate}</Text>
           </TouchableOpacity>
         </View>
         <TextInput
           style={s.input}
-          placeholder="Станция отправления"
+          placeholder={t.add_stationFrom}
           placeholderTextColor={C.textMute}
           value={fields.routeFrom ?? ''}
           onChangeText={(v) => setF('routeFrom', v)}
@@ -433,31 +443,31 @@ export default function AddTripScreen() {
         </View>
         <TextInput
           style={s.input}
-          placeholder="Станция прибытия"
+          placeholder={t.add_stationTo}
           placeholderTextColor={C.textMute}
           value={fields.routeTo ?? ''}
           onChangeText={(v) => setF('routeTo', v)}
         />
 
-        <Label>Тип поездки</Label>
+        <Label>{t.add_tripType}</Label>
         <View style={s.chipRow}>
-          {TYPES.map((t) => (
+          {TYPES.map((tripT) => (
             <TouchableOpacity
-              key={t}
-              style={[s.chip, fields.tripType === t && s.chipActive]}
-              onPress={() => setF('tripType', t)}
+              key={tripT}
+              style={[s.chip, fields.tripType === tripT && s.chipActive]}
+              onPress={() => setF('tripType', tripT)}
             >
-              <Text style={[s.chipText, fields.tripType === t && s.chipTextActive]}>
-                {TripTypeLabelMap[t]}
+              <Text style={[s.chipText, fields.tripType === tripT && s.chipTextActive]}>
+                {tripTypeLabel(tripT)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <Label>Номер поезда</Label>
+        <Label>{t.add_trainNumber}</Label>
         <TextInput
           style={s.input}
-          placeholder="Например: 1234"
+          placeholder={t.add_exTrainNumber}
           placeholderTextColor={C.textMute}
           keyboardType="numeric"
           value={extended.trainNumber}
@@ -466,10 +476,10 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 2: Состав поезда ────────────────────────────── */}
-      <Section title="Состав поезда" step={2}>
+      <Section title={t.add_secTrain} step={2}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>Вес поезда, т</Label>
+            <Label style={s.colLabel}>{t.add_trainWeight}</Label>
             <TextInput
               style={s.input}
               placeholder=""
@@ -481,7 +491,7 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>Количество осей</Label>
+            <Label style={s.colLabel}>{t.add_axleCount}</Label>
             <TextInput
               style={s.input}
               placeholder=""
@@ -495,13 +505,13 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 3: Локомотив ────────────────────────────────── */}
-      <Section title="Локомотив" step={3}>
+      <Section title={t.add_secLoco} step={3}>
         <View style={s.row}>
           <View style={{ flex: 2 }}>
-            <Label style={s.colLabel}>Серия</Label>
+            <Label style={s.colLabel}>{t.add_locoModel}</Label>
             <TextInput
               style={s.input}
-              placeholder="ВЛ80, КЗ8А..."
+              placeholder={t.add_exLocoModel}
               placeholderTextColor={C.textMute}
               value={extended.locoModel}
               onChangeText={(v) => setExt('locoModel', v)}
@@ -509,10 +519,10 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>Номер</Label>
+            <Label style={s.colLabel}>{t.add_locoNumber}</Label>
             <TextInput
               style={s.input}
-              placeholder="0542"
+              placeholder={t.add_exLocoNumber}
               placeholderTextColor={C.textMute}
               keyboardType="numeric"
               value={extended.locoNumber}
@@ -521,7 +531,7 @@ export default function AddTripScreen() {
           </View>
         </View>
 
-        <Label>Количество секций</Label>
+        <Label>{t.add_sectionCount}</Label>
         <View style={s.chipRow}>
           {([1, 2, 3] as const).map((n) => (
             <TouchableOpacity
@@ -536,17 +546,17 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 4: Явка ─────────────────────────────────────── */}
-      <Section title="Явка на работу" step={4}>
-        <Label>Тип явки</Label>
+      <Section title={t.add_secAppearance} step={4}>
+        <Label>{t.add_appearanceType}</Label>
         <View style={s.chipRow}>
-          {(['HOME', 'TURNAROUND'] as AppearanceType[]).map((t) => (
+          {(['HOME', 'TURNAROUND'] as AppearanceType[]).map((aType) => (
             <TouchableOpacity
-              key={t}
-              style={[s.chip, fields.appearanceType === t && s.chipActive]}
-              onPress={() => setF('appearanceType', t)}
+              key={aType}
+              style={[s.chip, fields.appearanceType === aType && s.chipActive]}
+              onPress={() => setF('appearanceType', aType)}
             >
-              <Text style={[s.chipText, fields.appearanceType === t && s.chipTextActive]}>
-                {AppearanceTypeLabelMap[t]}
+              <Text style={[s.chipText, fields.appearanceType === aType && s.chipTextActive]}>
+                {appearanceTypeLabel(aType)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -554,17 +564,17 @@ export default function AddTripScreen() {
 
         <View style={s.row}>
           <View style={{ flex: 1.2 }}>
-            <Label style={s.colLabel}>Дата явки</Label>
+            <Label style={s.colLabel}>{t.add_appearanceDate}</Label>
             <PickerBtn
               value={appearanceDate}
-              placeholder="Выбрать"
+              placeholder={t.add_choose}
               icon="calendar-outline"
               onPress={() => setPickerMode('appearanceDate')}
             />
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>Время явки</Label>
+            <Label style={s.colLabel}>{t.add_appearanceTime}</Label>
             <PickerBtn
               value={appearanceTime}
               placeholder="--:--"
@@ -574,7 +584,7 @@ export default function AddTripScreen() {
           </View>
         </View>
 
-        <Label>Обеденный перерыв, мин</Label>
+        <Label>{t.add_lunchBreak}</Label>
         <TextInput
           style={s.input}
           placeholder="0"
@@ -586,20 +596,20 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 5: Сдача ────────────────────────────────────── */}
-      <Section title="Сдача локомотива" step={5}>
+      <Section title={t.add_secHandover} step={5}>
         <View style={s.row}>
           <View style={{ flex: 1.2 }}>
-            <Label style={s.colLabel}>Дата сдачи</Label>
+            <Label style={s.colLabel}>{t.add_handoverDate}</Label>
             <PickerBtn
               value={handoverDate}
-              placeholder="Выбрать"
+              placeholder={t.add_choose}
               icon="calendar-outline"
               onPress={() => setPickerMode('handoverDate')}
             />
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>Время сдачи</Label>
+            <Label style={s.colLabel}>{t.add_handoverTime}</Label>
             <PickerBtn
               value={handoverTime}
               placeholder="--:--"
@@ -610,22 +620,22 @@ export default function AddTripScreen() {
         </View>
 
         {totalCycleMin !== null && totalCycleMin > 0 && (
-          <Text style={s.durationText}>Весь цикл: {formatDurMin(totalCycleMin)}</Text>
+          <Text style={s.durationText}>{t.add_totalCycle}: {fmtDur(totalCycleMin, t)}</Text>
         )}
 
         {timeError ? <Text style={s.errorText}>{timeError}</Text> : null}
       </Section>
 
       {/* ─── 6: Электроэнергия ───────────────────────────── */}
-      <Section title="Электроэнергия" step={6}>
+      <Section title={t.add_secElec} step={6}>
         {sectionMeters.map((sm, i) => (
           <View key={i}>
             {sectionCount > 1 && (
-              <Text style={s.sectionLabel}>Секция {i + 1}</Text>
+              <Text style={s.sectionLabel}>{t.add_section} {i + 1}</Text>
             )}
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>Начало, кВт·ч</Label>
+                <Label style={s.colLabel}>{t.add_elecStart}</Label>
                 <TextInput
                   style={s.input}
                   placeholder=""
@@ -637,7 +647,7 @@ export default function AddTripScreen() {
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>Конец, кВт·ч</Label>
+                <Label style={s.colLabel}>{t.add_elecEnd}</Label>
                 <TextInput
                   style={s.input}
                   placeholder=""
@@ -650,15 +660,15 @@ export default function AddTripScreen() {
             </View>
             {sectionConsumptions[i] !== null && (
               <Text style={s.calcText}>
-                Расход{sectionCount > 1 ? ` (сек. ${i + 1})` : ''}: {sectionConsumptions[i]!.toFixed(0)} кВт·ч
+                {t.add_consumption}{sectionCount > 1 ? ` (${t.add_section.toLowerCase()} ${i + 1})` : ''}: {sectionConsumptions[i]!.toFixed(0)} кВт·ч
               </Text>
             )}
             {sectionConsumptions[i] !== null && sectionConsumptions[i]! < 0 && (
-              <Text style={s.warnText}>Показание на конец меньше начального</Text>
+              <Text style={s.warnText}>{t.add_warnMeter}</Text>
             )}
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>Рекуперация приёмка</Label>
+                <Label style={s.colLabel}>{t.add_recupAccepted}</Label>
                 <TextInput
                   style={s.input}
                   placeholder="кВт·ч"
@@ -670,7 +680,7 @@ export default function AddTripScreen() {
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>Рекуперация сдача</Label>
+                <Label style={s.colLabel}>{t.add_recupDelivered}</Label>
                 <TextInput
                   style={s.input}
                   placeholder="кВт·ч"
@@ -685,15 +695,15 @@ export default function AddTripScreen() {
         ))}
 
         {sectionCount > 1 && totalConsumption !== null && (
-          <Text style={[s.durationText, { marginTop: 4 }]}>Итого: {totalConsumption.toFixed(0)} кВт·ч</Text>
+          <Text style={[s.durationText, { marginTop: 4 }]}>{t.add_totalConsumption}: {totalConsumption.toFixed(0)} кВт·ч</Text>
         )}
       </Section>
 
       {/* ─── 7: Проследование КП ─────────────────────────── */}
-      <Section title="Проследование КП" step={7}>
+      <Section title={t.add_secCheckpoint} step={7}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>При выходе</Label>
+            <Label style={s.colLabel}>{t.add_checkpointOut}</Label>
             <TextInput
               style={s.input}
               placeholder=""
@@ -705,7 +715,7 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>При заходе</Label>
+            <Label style={s.colLabel}>{t.add_checkpointIn}</Label>
             <TextInput
               style={s.input}
               placeholder=""
@@ -720,13 +730,13 @@ export default function AddTripScreen() {
 
       {/* ─── Следование пассажиром ───────────────────────── */}
       {settings?.trackPassengerTravel && (
-        <Section title="Следование пассажиром">
+        <Section title={t.add_secPassenger}>
           <View style={s.row}>
             <View style={{ flex: 1 }}>
-              <Label style={s.colLabel}>Выезд</Label>
+              <Label style={s.colLabel}>{t.add_passengerDepart}</Label>
               <TextInput
                 style={s.input}
-                placeholder="ЧЧ:ММ"
+                placeholder={t.add_hhmmPlaceholder}
                 placeholderTextColor={C.textMute}
                 value={extended.passengerDepartureTime}
                 onChangeText={(v) => setExt('passengerDepartureTime', v)}
@@ -734,10 +744,10 @@ export default function AddTripScreen() {
             </View>
             <View style={{ width: 12 }} />
             <View style={{ flex: 1 }}>
-              <Label style={s.colLabel}>Прибытие</Label>
+              <Label style={s.colLabel}>{t.add_passengerArrive}</Label>
               <TextInput
                 style={s.input}
-                placeholder="ЧЧ:ММ"
+                placeholder={t.add_hhmmPlaceholder}
                 placeholderTextColor={C.textMute}
                 value={extended.passengerArrivalTime}
                 onChangeText={(v) => setExt('passengerArrivalTime', v)}
@@ -748,10 +758,10 @@ export default function AddTripScreen() {
       )}
 
       {/* ─── Примечание ──────────────────────────────────── */}
-      <Section title="Примечание">
+      <Section title={t.add_secNotes}>
         <TextInput
           style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
-          placeholder="Необязательно"
+          placeholder={t.detail_notOptional}
           placeholderTextColor={C.textMute}
           multiline
           value={userNotes}
@@ -765,7 +775,7 @@ export default function AddTripScreen() {
         onPress={handleSave}
         disabled={saving}
       >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnPrimaryText}>Сохранить поездку</Text>}
+        {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnPrimaryText}>{t.add_save}</Text>}
       </TouchableOpacity>
 
       {/* ─── DateTimePicker ──────────────────────────────── */}
@@ -776,7 +786,7 @@ export default function AddTripScreen() {
               <View style={s.iosSheetHeader}>
                 <Text style={s.iosSheetTitle}>{pickerLabel(pickerMode)}</Text>
                 <TouchableOpacity onPress={() => setPickerMode(null)}>
-                  <Text style={{ color: C.blue, fontSize: 16, fontWeight: '600' }}>Готово</Text>
+                  <Text style={{ color: C.blue, fontSize: 16, fontWeight: '600' }}>{t.add_iosDone}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -802,16 +812,6 @@ export default function AddTripScreen() {
       ) : null}
     </ScrollView>
   );
-}
-
-function pickerLabel(mode: PickerMode): string {
-  switch (mode) {
-    case 'appearanceDate': return 'Дата явки';
-    case 'appearanceTime': return 'Время явки';
-    case 'handoverDate': return 'Дата сдачи';
-    case 'handoverTime': return 'Время сдачи';
-    default: return '';
-  }
 }
 
 function Section({ title, step, children }: { title?: string; step?: number; children: React.ReactNode }) {

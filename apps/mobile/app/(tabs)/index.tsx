@@ -10,26 +10,22 @@ import {
   localSettingsStorage, LocalSettings,
   LocalTrip,
 } from '@/services/storage.service';
-import { TripTypeLabelMap } from '@railcrew/contracts';
+import { TripType } from '@railcrew/contracts';
 import { formatDuration } from '@/utils/date';
 import { exportApi } from '@/services/api.service';
+import { useLang, pluralTrips, fmtDur, Strings } from '@/i18n';
 
 type PeriodFilter = 'DAY' | 'WEEK' | 'MONTH';
 
 const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const MONTH_SHORT_KK = ['қаң', 'ақп', 'нау', 'сәу', 'мам', 'мау', 'шіл', 'там', 'қыр', 'қаз', 'қар', 'жел'];
 
-function formatDateShort(isoDate: string): string {
+function formatDateShort(isoDate: string, lang: string): string {
   const [y, m, d] = isoDate.split('-').map(Number);
-  return `${d} ${MONTH_SHORT[m - 1]} ${y}`;
+  const months = lang === 'kk' ? MONTH_SHORT_KK : MONTH_SHORT;
+  return `${d} ${months[m - 1]} ${y}`;
 }
 
-const PERIODS: { label: string; value: PeriodFilter }[] = [
-  { label: 'День', value: 'DAY' },
-  { label: 'Неделя', value: 'WEEK' },
-  { label: 'Месяц', value: 'MONTH' },
-];
-
-// Design tokens
 const C = {
   bg: '#0B0F14',
   card: '#1A2230',
@@ -63,14 +59,6 @@ function getPeriodBounds(period: PeriodFilter): { from: string; to: string } {
   }
 }
 
-function getPeriodLabel(period: PeriodFilter): string {
-  switch (period) {
-    case 'DAY': return 'Сегодня';
-    case 'WEEK': return 'Неделя';
-    case 'MONTH': return 'Месяц';
-  }
-}
-
 function calcDuration(sDate: string, sTime: string, eDate: string, eTime: string): number | null {
   const start = new Date(`${sDate}T${sTime}:00`);
   const end = new Date(`${eDate}T${eTime}:00`);
@@ -83,13 +71,6 @@ function parseNightMinutesFromNotes(notes: string | null | undefined): number {
   const match = notes.match(/Ночных:\s*(\d+)\s*ч(?:\s*(\d+)\s*мин)?/);
   if (!match) return 0;
   return (parseInt(match[1], 10) || 0) * 60 + (parseInt(match[2], 10) || 0);
-}
-
-function pluralTrips(n: number): string {
-  const m10 = n % 10, m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return 'поездка';
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return 'поездки';
-  return 'поездок';
 }
 
 function calcSalary(
@@ -118,10 +99,25 @@ function calcSalary(
 export default function DashboardScreen() {
   const { trips, loadLocal } = useTripsStore();
   const { profile } = useAuthStore();
+  const { t, lang } = useLang();
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
   const [salaryRule, setSalaryRule] = useState<LocalSalaryRule | null>(null);
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  const PERIODS: { label: string; value: PeriodFilter }[] = [
+    { label: t.dashboard_day, value: 'DAY' },
+    { label: t.dashboard_week, value: 'WEEK' },
+    { label: t.dashboard_month, value: 'MONTH' },
+  ];
+
+  function getPeriodLabel(p: PeriodFilter): string {
+    switch (p) {
+      case 'DAY': return t.dashboard_today;
+      case 'WEEK': return t.dashboard_week;
+      case 'MONTH': return t.dashboard_month;
+    }
+  }
 
   useEffect(() => {
     loadLocal();
@@ -131,18 +127,18 @@ export default function DashboardScreen() {
 
   const filtered = useMemo(() => {
     const { from, to } = getPeriodBounds(period);
-    return trips.filter((t) => t.date >= from && t.date <= to);
+    return trips.filter((tr) => tr.date >= from && tr.date <= to);
   }, [trips, period]);
 
   const totalMinutes = useMemo(
-    () => filtered.reduce((sum, t) => sum + (t.durationMinutes ?? 0), 0),
+    () => filtered.reduce((sum, tr) => sum + (tr.durationMinutes ?? 0), 0),
     [filtered],
   );
   const totalHours = Math.floor(totalMinutes / 60);
 
   const totalNightMinutes = useMemo(
-    () => filtered.reduce((sum, t) => {
-      const mins = t.nightMinutes ?? parseNightMinutesFromNotes(t.notes);
+    () => filtered.reduce((sum, tr) => {
+      const mins = tr.nightMinutes ?? parseNightMinutesFromNotes(tr.notes);
       return sum + mins;
     }, 0),
     [filtered],
@@ -160,9 +156,9 @@ export default function DashboardScreen() {
 
   const cycleStats = useMemo(() => {
     let totalCycleMin = 0, cycleCount = 0;
-    for (const t of filtered) {
-      if (t.appearanceDate && t.appearanceTime && t.handoverDate && t.handoverTime) {
-        const c = calcDuration(t.appearanceDate, t.appearanceTime, t.handoverDate, t.handoverTime);
+    for (const tr of filtered) {
+      if (tr.appearanceDate && tr.appearanceTime && tr.handoverDate && tr.handoverTime) {
+        const c = calcDuration(tr.appearanceDate, tr.appearanceTime, tr.handoverDate, tr.handoverTime);
         if (c !== null) { totalCycleMin += c; cycleCount++; }
       }
     }
@@ -171,16 +167,16 @@ export default function DashboardScreen() {
 
   const elecStats = useMemo(() => {
     let total = 0, count = 0;
-    for (const t of filtered) {
-      if (t.sectionMeters && t.sectionMeters.length > 0) {
+    for (const tr of filtered) {
+      if (tr.sectionMeters && tr.sectionMeters.length > 0) {
         let tripTotal = 0, allValid = true;
-        for (const sm of t.sectionMeters) {
+        for (const sm of tr.sectionMeters) {
           if (sm.start !== undefined && sm.end !== undefined && sm.end >= sm.start) tripTotal += sm.end - sm.start;
           else allValid = false;
         }
         if (allValid && tripTotal > 0) { total += tripTotal; count++; }
-      } else if (t.meterStart !== undefined && t.meterEnd !== undefined && t.meterEnd >= t.meterStart) {
-        total += t.meterEnd - t.meterStart; count++;
+      } else if (tr.meterStart !== undefined && tr.meterEnd !== undefined && tr.meterEnd >= tr.meterStart) {
+        total += tr.meterEnd - tr.meterStart; count++;
       }
     }
     return count > 0 ? { total, count } : null;
@@ -188,49 +184,59 @@ export default function DashboardScreen() {
 
   const locoStats = useMemo(() => {
     const map = new Map<string, { label: string; count: number; totalMin: number }>();
-    for (const t of filtered) {
-      if (!t.locoModel && !t.locoNumber) continue;
-      const key = [t.locoModel ?? '', t.locoNumber ? `№${t.locoNumber}` : ''].filter(Boolean).join(' ');
+    for (const tr of filtered) {
+      if (!tr.locoModel && !tr.locoNumber) continue;
+      const key = [tr.locoModel ?? '', tr.locoNumber ? `№${tr.locoNumber}` : ''].filter(Boolean).join(' ');
       const ex = map.get(key);
-      if (ex) { ex.count++; ex.totalMin += t.durationMinutes ?? 0; }
-      else map.set(key, { label: key, count: 1, totalMin: t.durationMinutes ?? 0 });
+      if (ex) { ex.count++; ex.totalMin += tr.durationMinutes ?? 0; }
+      else map.set(key, { label: key, count: 1, totalMin: tr.durationMinutes ?? 0 });
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [filtered]);
 
   const routeStats = useMemo(() => {
     const map = new Map<string, { routeFrom: string; routeTo: string; count: number; totalMinutes: number }>();
-    for (const t of filtered) {
-      const key = `${t.routeFrom}__${t.routeTo}`;
+    for (const tr of filtered) {
+      const key = `${tr.routeFrom}__${tr.routeTo}`;
       const ex = map.get(key);
-      if (ex) { ex.count++; ex.totalMinutes += t.durationMinutes ?? 0; }
-      else map.set(key, { routeFrom: t.routeFrom, routeTo: t.routeTo, count: 1, totalMinutes: t.durationMinutes ?? 0 });
+      if (ex) { ex.count++; ex.totalMinutes += tr.durationMinutes ?? 0; }
+      else map.set(key, { routeFrom: tr.routeFrom, routeTo: tr.routeTo, count: 1, totalMinutes: tr.durationMinutes ?? 0 });
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [filtered]);
 
   const typeStats = useMemo(() => {
     const map = new Map<string, number>();
-    for (const t of filtered) map.set(t.tripType, (map.get(t.tripType) ?? 0) + 1);
+    for (const tr of filtered) map.set(tr.tripType, (map.get(tr.tripType) ?? 0) + 1);
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [filtered]);
 
-  const greeting = profile?.firstName ? `Привет, ${profile.firstName}` : 'Сводка';
+  const tripTypeLabel = (type: TripType): string => {
+    const map: Record<string, string> = {
+      FREIGHT: t.tripType_FREIGHT,
+      PASSENGER: t.tripType_PASSENGER,
+      SHUNTING: t.tripType_SHUNTING,
+      DEAD_RUN: t.tripType_DEAD_RUN,
+    };
+    return map[type] ?? type;
+  };
+
+  const greeting = profile?.firstName ? `${t.dashboard_helloPrefix}${profile.firstName}` : t.dashboard_titleFallback;
 
   const { from: monthFrom, to: monthTo } = getPeriodBounds('MONTH');
 
-  function handleExportMonth(format: 'pdf' | 'xlsx') {
+  function handleExportMonth(fmt: 'pdf' | 'xlsx') {
     Alert.alert(
-      'Экспорт за месяц',
-      `Скачать отчёт за ${monthFrom} — ${monthTo} в формате ${format.toUpperCase()}?`,
+      t.dashboard_exportTitle,
+      `${t.dashboard_exportChoose} (${monthFrom} — ${monthTo})`,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t.common_cancel, style: 'cancel' },
         {
-          text: 'Скачать',
+          text: t.dashboard_download,
           onPress: async () => {
             setExporting(true);
             try {
-              if (format === 'pdf') {
+              if (fmt === 'pdf') {
                 const data = await exportApi.downloadPeriodPdf(monthFrom, monthTo);
                 const path = `${FileSystem.cacheDirectory}trips-${monthFrom}-${monthTo}.pdf`;
                 await FileSystem.writeAsStringAsync(path, Buffer.from(data).toString('base64'), {
@@ -249,7 +255,7 @@ export default function DashboardScreen() {
                 });
               }
             } catch {
-              Alert.alert('Ошибка', 'Не удалось экспортировать данные');
+              Alert.alert(t.common_error, t.dashboard_exportError);
             } finally {
               setExporting(false);
             }
@@ -260,8 +266,8 @@ export default function DashboardScreen() {
   }
 
   function handleExportPress() {
-    Alert.alert('Экспорт за месяц', 'Выберите формат', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t.dashboard_exportTitle, t.dashboard_exportChoose, [
+      { text: t.common_cancel, style: 'cancel' },
       { text: 'PDF', onPress: () => handleExportMonth('pdf') },
       { text: 'Excel', onPress: () => handleExportMonth('xlsx') },
     ]);
@@ -279,7 +285,7 @@ export default function DashboardScreen() {
         >
           {exporting
             ? <ActivityIndicator color={C.blue} size="small" />
-            : <Text style={s.exportMonthBtnText}>Экспорт за месяц</Text>}
+            : <Text style={s.exportMonthBtnText}>{t.dashboard_exportMonth}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -304,11 +310,11 @@ export default function DashboardScreen() {
         <HeroSalaryCard salary={salary} periodLabel={getPeriodLabel(period)} />
       ) : (
         <View style={s.card}>
-          <Text style={s.cardLabel}>Зарплата · {getPeriodLabel(period)}</Text>
+          <Text style={s.cardLabel}>{t.dashboard_salary} · {getPeriodLabel(period)}</Text>
           <Text style={s.placeholder}>
             {!salaryRule || salaryRule.ratePerHour === 0
-              ? 'Задайте ставку за час в разделе «Настройки»'
-              : 'Нет поездок — заработок не рассчитан'}
+              ? t.dashboard_setRate
+              : t.dashboard_noTrips}
           </Text>
         </View>
       )}
@@ -318,53 +324,59 @@ export default function DashboardScreen() {
         {normPct !== null ? (
           <NormTile pct={normPct} hoursWorked={totalHours} hoursNorm={settings!.monthlyHoursNorm} />
         ) : (
-          <StatTile label="Часов" value={String(totalHours)} />
+          <StatTile label={t.dashboard_hours} value={String(totalHours)} />
         )}
-        <StatTile label="Поездок" value={String(filtered.length)} />
+        <StatTile label={t.dashboard_tripsCount} value={String(filtered.length)} />
       </View>
 
       {filtered.length === 0 ? (
-        <Text style={s.empty}>Нет поездок за выбранный период</Text>
+        <Text style={s.empty}>{t.dashboard_empty}</Text>
       ) : (
         <>
           {/* Salary breakdown */}
           {salary && (
             <View style={s.card}>
-              <Text style={s.cardLabel}>Разбивка зарплаты</Text>
-              <BreakdownRow color={C.blue} label={`База (${Math.round(salary.regularHours)} ч)`} amount={salary.basePay} />
+              <Text style={s.cardLabel}>{t.dashboard_breakdown}</Text>
+              <BreakdownRow color={C.blue} label={`${t.dashboard_base} (${Math.round(salary.regularHours)} ${t.hour_abbr})`} amount={salary.basePay} />
               {salary.nightPay > 0 && (
-                <BreakdownRow color={C.purple} label={`Ночные (${Math.round(salary.nightHours)} ч)`} amount={salary.nightPay} />
+                <BreakdownRow color={C.purple} label={`${t.dashboard_night} (${Math.round(salary.nightHours)} ${t.hour_abbr})`} amount={salary.nightPay} />
               )}
               {salary.overtimePay > 0 && (
-                <BreakdownRow color={C.amber} label={`Сверхурочные (${Math.round(salary.overtimeHours)} ч)`} amount={salary.overtimePay} />
+                <BreakdownRow color={C.amber} label={`${t.dashboard_overtime} (${Math.round(salary.overtimeHours)} ${t.hour_abbr})`} amount={salary.overtimePay} />
               )}
               {salary.bonusPay > 0 && (
-                <BreakdownRow color={C.green} label="Бонусы за поездки" amount={salary.bonusPay} />
+                <BreakdownRow color={C.green} label={t.dashboard_bonuses} amount={salary.bonusPay} />
               )}
               <View style={s.divider} />
-              <BreakdownRow color={C.blue} label="Итого ≈" amount={salary.total} highlight />
+              <BreakdownRow color={C.blue} label={t.dashboard_total} amount={salary.total} highlight />
             </View>
           )}
 
           {/* Recent trips */}
           <View style={s.card}>
-            <Text style={s.cardLabel}>Последние поездки</Text>
-            {filtered.slice(0, 3).map((t, i) => (
+            <Text style={s.cardLabel}>{t.dashboard_recentTrips}</Text>
+            {filtered.slice(0, 3).map((tr, i) => (
               <TripRow
-                key={t.id ?? t.localId ?? i}
-                trip={t}
+                key={tr.id ?? tr.localId ?? i}
+                trip={tr}
                 last={i === Math.min(filtered.length, 3) - 1}
+                tripTypeLabel={tripTypeLabel(tr.tripType as TripType)}
+                lang={lang}
               />
             ))}
             {filtered.length > 3 && (
-              <Text style={s.moreText}>ещё {filtered.length - 3} {pluralTrips(filtered.length - 3)}</Text>
+              <Text style={s.moreText}>
+                {lang === 'kk'
+                  ? `тағы ${filtered.length - 3} ${pluralTrips(filtered.length - 3, t)}`
+                  : `ещё ${filtered.length - 3} ${pluralTrips(filtered.length - 3, t)}`}
+              </Text>
             )}
           </View>
 
           {/* Night hours */}
           {settings?.trackNightHours && totalNightMinutes > 0 && (
             <View style={[s.card, s.accentLeft, { borderLeftColor: C.purple }]}>
-              <Text style={s.cardLabel}>Ночных часов</Text>
+              <Text style={s.cardLabel}>{t.dashboard_nightHours}</Text>
               <Text style={[s.monoLarge, { color: C.purple }]}>{formatDuration(totalNightMinutes)}</Text>
             </View>
           )}
@@ -373,17 +385,17 @@ export default function DashboardScreen() {
           {cycleStats.cycleCount > 0 && (
             <View style={s.card}>
               <Text style={s.cardLabel}>
-                Рабочий цикл · {cycleStats.cycleCount} {pluralTrips(cycleStats.cycleCount)}
+                {t.dashboard_workCycle} · {cycleStats.cycleCount} {pluralTrips(cycleStats.cycleCount, t)}
               </Text>
               <View style={s.metricRow}>
-                <Text style={s.metricLabel}>Всего (явка → сдача)</Text>
-                <Text style={s.metricValue}>{formatDuration(cycleStats.totalCycleMin)}</Text>
+                <Text style={s.metricLabel}>{t.dashboard_totalCycle}</Text>
+                <Text style={s.metricValue}>{fmtDur(cycleStats.totalCycleMin, t)}</Text>
               </View>
               {cycleStats.cycleCount > 1 && (
                 <View style={s.metricRow}>
-                  <Text style={s.metricLabel}>Средний цикл</Text>
+                  <Text style={s.metricLabel}>{t.dashboard_avgCycle}</Text>
                   <Text style={[s.metricValue, { color: C.textMuted }]}>
-                    {formatDuration(Math.round(cycleStats.totalCycleMin / cycleStats.cycleCount))}
+                    {fmtDur(Math.round(cycleStats.totalCycleMin / cycleStats.cycleCount), t)}
                   </Text>
                 </View>
               )}
@@ -393,14 +405,14 @@ export default function DashboardScreen() {
           {/* Electricity */}
           {elecStats !== null && (
             <View style={[s.card, s.accentLeft, { borderLeftColor: C.green }]}>
-              <Text style={s.cardLabel}>Электроэнергия</Text>
+              <Text style={s.cardLabel}>{t.dashboard_electricity}</Text>
               <View style={s.metricRow}>
-                <Text style={s.metricLabel}>Расход за период</Text>
+                <Text style={s.metricLabel}>{t.dashboard_elecPeriod}</Text>
                 <Text style={[s.metricValue, { color: C.green }]}>{elecStats.total.toFixed(0)} кВт·ч</Text>
               </View>
               {elecStats.count > 1 && (
                 <View style={s.metricRow}>
-                  <Text style={s.metricLabel}>Среднее за поездку</Text>
+                  <Text style={s.metricLabel}>{t.dashboard_elecAvg}</Text>
                   <Text style={[s.metricValue, { color: C.textMuted }]}>
                     {Math.round(elecStats.total / elecStats.count)} кВт·ч
                   </Text>
@@ -412,14 +424,12 @@ export default function DashboardScreen() {
           {/* Trip types */}
           {typeStats.length > 0 && (
             <View style={s.card}>
-              <Text style={s.cardLabel}>По типам</Text>
+              <Text style={s.cardLabel}>{t.dashboard_byType}</Text>
               {typeStats.map(([type, count]) => (
                 <View key={type} style={s.metricRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={[s.dot, { backgroundColor: TYPE_COLORS[type] ?? C.textMuted }]} />
-                    <Text style={s.metricLabel}>
-                      {TripTypeLabelMap[type as keyof typeof TripTypeLabelMap]}
-                    </Text>
+                    <Text style={s.metricLabel}>{tripTypeLabel(type as TripType)}</Text>
                   </View>
                   <Text style={s.metricValue}>{count}</Text>
                 </View>
@@ -430,12 +440,12 @@ export default function DashboardScreen() {
           {/* Locos */}
           {locoStats.length > 0 && (
             <View style={s.card}>
-              <Text style={s.cardLabel}>Локомотивы</Text>
+              <Text style={s.cardLabel}>{t.dashboard_locos}</Text>
               {locoStats.map((l, i) => (
                 <View key={i} style={s.metricRow}>
                   <Text style={s.metricLabel} numberOfLines={1}>{l.label}</Text>
                   <Text style={s.metricValue}>
-                    {l.count} {pluralTrips(l.count)} · {formatDuration(l.totalMin)}
+                    {l.count} {pluralTrips(l.count, t)} · {fmtDur(l.totalMin, t)}
                   </Text>
                 </View>
               ))}
@@ -445,12 +455,12 @@ export default function DashboardScreen() {
           {/* Routes */}
           {routeStats.length > 0 && (
             <View style={s.card}>
-              <Text style={s.cardLabel}>Маршруты</Text>
+              <Text style={s.cardLabel}>{t.dashboard_routes}</Text>
               {routeStats.map((r, i) => (
                 <View key={i} style={{ marginBottom: 10 }}>
                   <Text style={s.metricValue} numberOfLines={1}>{r.routeFrom} — {r.routeTo}</Text>
                   <Text style={[s.metricLabel, { marginTop: 2 }]}>
-                    {r.count} {pluralTrips(r.count)} · {formatDuration(r.totalMinutes)}
+                    {r.count} {pluralTrips(r.count, t)} · {fmtDur(r.totalMinutes, t)}
                   </Text>
                 </View>
               ))}
@@ -471,36 +481,27 @@ function HeroSalaryCard({
   salary: ReturnType<typeof calcSalary>;
   periodLabel: string;
 }) {
+  const { t } = useLang();
   const { basePay, nightPay, overtimePay, bonusPay, total } = salary;
   const safeTotal = Math.max(total, 1);
 
   return (
     <View style={s.heroCard}>
-      <Text style={s.cardLabel}>Зарплата · {periodLabel}</Text>
+      <Text style={s.cardLabel}>{t.dashboard_salary} · {periodLabel}</Text>
       <Text style={s.heroAmount}>{total.toLocaleString()} ₸</Text>
 
-      {/* StackedBar */}
       <View style={s.stackedBar}>
-        {basePay > 0 && (
-          <View style={{ flex: basePay / safeTotal, backgroundColor: C.blue }} />
-        )}
-        {nightPay > 0 && (
-          <View style={{ flex: nightPay / safeTotal, backgroundColor: C.purple }} />
-        )}
-        {overtimePay > 0 && (
-          <View style={{ flex: overtimePay / safeTotal, backgroundColor: C.amber }} />
-        )}
-        {bonusPay > 0 && (
-          <View style={{ flex: bonusPay / safeTotal, backgroundColor: C.green }} />
-        )}
+        {basePay > 0 && <View style={{ flex: basePay / safeTotal, backgroundColor: C.blue }} />}
+        {nightPay > 0 && <View style={{ flex: nightPay / safeTotal, backgroundColor: C.purple }} />}
+        {overtimePay > 0 && <View style={{ flex: overtimePay / safeTotal, backgroundColor: C.amber }} />}
+        {bonusPay > 0 && <View style={{ flex: bonusPay / safeTotal, backgroundColor: C.green }} />}
       </View>
 
-      {/* Legend */}
       <View style={s.legendRow}>
-        {basePay > 0 && <LegendDot color={C.blue} label="База" />}
-        {nightPay > 0 && <LegendDot color={C.purple} label="Ночные" />}
-        {overtimePay > 0 && <LegendDot color={C.amber} label="Сверхур." />}
-        {bonusPay > 0 && <LegendDot color={C.green} label="Бонусы" />}
+        {basePay > 0 && <LegendDot color={C.blue} label={t.dashboard_base} />}
+        {nightPay > 0 && <LegendDot color={C.purple} label={t.dashboard_night} />}
+        {overtimePay > 0 && <LegendDot color={C.amber} label={t.dashboard_overtime} />}
+        {bonusPay > 0 && <LegendDot color={C.green} label={t.dashboard_bonuses} />}
       </View>
     </View>
   );
@@ -511,14 +512,15 @@ function NormTile({ pct, hoursWorked, hoursNorm }: {
   hoursWorked: number;
   hoursNorm: number;
 }) {
+  const { t } = useLang();
   const color = pct >= 1 ? C.amber : C.blue;
   return (
     <View style={[s.tile, { alignItems: 'center' }]}>
       <View style={[s.normRing, { borderColor: color }]}>
         <Text style={[s.normPct, { color }]}>{Math.round(pct * 100)}%</Text>
       </View>
-      <Text style={s.tileLabel}>Норма</Text>
-      <Text style={s.tileSub}>{hoursWorked} / {hoursNorm} ч</Text>
+      <Text style={s.tileLabel}>{t.dashboard_norm}</Text>
+      <Text style={s.tileSub}>{hoursWorked} / {hoursNorm} {t.hour_abbr}</Text>
     </View>
   );
 }
@@ -563,9 +565,13 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-function TripRow({ trip, last }: { trip: LocalTrip; last: boolean }) {
+function TripRow({ trip, last, tripTypeLabel, lang }: {
+  trip: LocalTrip;
+  last: boolean;
+  tripTypeLabel: string;
+  lang: string;
+}) {
   const color = TYPE_COLORS[trip.tripType] ?? C.textMuted;
-  const typeLabel = TripTypeLabelMap[trip.tripType as keyof typeof TripTypeLabelMap] ?? trip.tripType;
 
   return (
     <View style={[s.tripRow, !last && { borderBottomWidth: 1, borderBottomColor: C.divider }]}>
@@ -574,16 +580,16 @@ function TripRow({ trip, last }: { trip: LocalTrip; last: boolean }) {
           {trip.routeFrom} → {trip.routeTo}
         </Text>
         <View style={[s.typeChip, { backgroundColor: color + '26' }]}>
-          <Text style={[s.typeChipText, { color }]}>{typeLabel}</Text>
+          <Text style={[s.typeChipText, { color }]}>{tripTypeLabel}</Text>
         </View>
       </View>
       <View style={s.tripMeta}>
-        <Text style={s.tripMetaText}>{formatDateShort(trip.date)}</Text>
+        <Text style={s.tripMetaText}>{formatDateShort(trip.date, lang)}</Text>
         <Text style={[s.tripMetaText, { fontFamily: 'monospace' }]}>
           {formatDuration(trip.durationMinutes ?? 0)}
         </Text>
         {!trip.syncedAt && (
-          <Text style={[s.tripMetaText, { color: C.amber }]}>● локально</Text>
+          <Text style={[s.tripMetaText, { color: C.amber }]}>{lang === 'kk' ? '● жергілікті' : '● локально'}</Text>
         )}
       </View>
     </View>
@@ -599,16 +605,13 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     marginTop: 48, marginBottom: 12,
   },
-  greeting: {
-    color: C.textPrimary, fontSize: 22, fontWeight: '700', flex: 1,
-  },
+  greeting: { color: C.textPrimary, fontSize: 22, fontWeight: '700', flex: 1 },
   exportMonthBtn: {
     borderWidth: 1, borderColor: C.blue, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 7, marginLeft: 12,
   },
   exportMonthBtnText: { color: C.blue, fontSize: 13, fontWeight: '600' },
 
-  // Period
   periodRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   periodBtn: {
     paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
@@ -618,7 +621,6 @@ const s = StyleSheet.create({
   periodBtnText: { color: C.textMuted, fontSize: 14 },
   periodBtnTextActive: { color: '#fff', fontWeight: '600' },
 
-  // Cards
   card: { backgroundColor: C.card, borderRadius: 16, padding: 16, marginBottom: 12 },
   cardLabel: {
     color: C.textMuted, fontSize: 11, fontWeight: '600',
@@ -628,7 +630,6 @@ const s = StyleSheet.create({
   divider: { height: 1, backgroundColor: C.divider, marginVertical: 8 },
   placeholder: { color: C.textMuted, fontSize: 14, paddingVertical: 4 },
 
-  // Hero salary card
   heroCard: {
     backgroundColor: '#1A3A5C', borderRadius: 16, padding: 20, marginBottom: 12,
     borderTopWidth: 2, borderTopColor: '#2472CC',
@@ -644,7 +645,6 @@ const s = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendLabel: { color: C.textSub, fontSize: 12 },
 
-  // Tiles
   tileRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   tile: {
     flex: 1, backgroundColor: C.card, borderRadius: 16, padding: 16,
@@ -654,20 +654,17 @@ const s = StyleSheet.create({
   tileLabel: { color: C.textMuted, fontSize: 12, marginTop: 6 },
   tileSub: { color: C.textSub, fontSize: 11, marginTop: 2 },
 
-  // Norm ring
   normRing: {
     width: 72, height: 72, borderRadius: 36, borderWidth: 5,
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
   normPct: { fontSize: 15, fontWeight: '700', fontFamily: 'monospace' },
 
-  // Breakdown
   breakdownRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   breakdownLabel: { flex: 1, color: C.textMuted, fontSize: 14 },
   breakdownAmount: { color: C.textPrimary, fontSize: 14, fontWeight: '600', fontFamily: 'monospace' },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10, flexShrink: 0 },
 
-  // Trip rows
   tripRow: { paddingVertical: 12 },
   tripTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   tripRoute: { color: C.textPrimary, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
@@ -677,11 +674,12 @@ const s = StyleSheet.create({
   tripMetaText: { color: C.textMuted, fontSize: 12 },
   moreText: { color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 6 },
 
-  // Misc
   metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   metricLabel: { color: C.textMuted, fontSize: 14, flex: 1, paddingRight: 8 },
   metricValue: { color: C.textPrimary, fontSize: 14, fontWeight: '600' },
   monoLarge: { fontSize: 24, fontWeight: '700', fontFamily: 'monospace', marginTop: 4 },
 
   empty: { color: C.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
+
+  hour_abbr: {},
 });

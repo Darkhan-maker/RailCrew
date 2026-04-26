@@ -13,8 +13,9 @@ import * as Sharing from 'expo-sharing';
 import { useTripsStore } from '@/store/trips.store';
 import { tripsApi, exportApi } from '@/services/api.service';
 import { LocalTrip, LocalCreateTripDto } from '@/services/storage.service';
-import { TripType, TripTypeLabelMap, UpdateTripDtoSchema } from '@railcrew/contracts';
-import { formatDuration, formatDateRu } from '@/utils/date';
+import { TripType, UpdateTripDtoSchema } from '@railcrew/contracts';
+import { formatDateRu } from '@/utils/date';
+import { useLang, fmtDur } from '@/i18n';
 
 function formatShortDatetime(date: string, time: string): string {
   try {
@@ -42,15 +43,10 @@ function calcDurationFull(
   return diffMin > 0 ? diffMin : null;
 }
 
-function formatDurMin(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
-}
-
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { trips, updateTrip, deleteTrip } = useTripsStore();
+  const { t } = useLang();
   const [trip, setTrip] = useState<LocalTrip | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,19 +54,26 @@ export default function TripDetailScreen() {
   const [pickerMode, setPickerMode] = useState<PickerMode>(null);
   const [exporting, setExporting] = useState(false);
 
+  const tripTypeLabel = (type: TripType): string => ({
+    FREIGHT: t.tripType_FREIGHT,
+    PASSENGER: t.tripType_PASSENGER,
+    SHUNTING: t.tripType_SHUNTING,
+    DEAD_RUN: t.tripType_DEAD_RUN,
+  })[type] ?? type;
+
   useEffect(() => {
-    const local = trips.find((t) => t.id === id || t.localId === id);
+    const local = trips.find((trip) => trip.id === id || trip.localId === id);
     if (local) {
       setTrip(local);
       setDraft(local);
       return;
     }
-    tripsApi.get(id).then((t) => {
-      const lt: LocalTrip = t;
+    tripsApi.get(id).then((trip) => {
+      const lt: LocalTrip = trip;
       setTrip(lt);
       setDraft(lt);
     }).catch(() => {
-      Alert.alert('Ошибка', 'Поездка не найдена');
+      Alert.alert(t.common_error, t.detail_notFound);
       router.back();
     });
   }, [id, trips]);
@@ -129,7 +132,6 @@ export default function TripDetailScreen() {
   }
 
   async function handleSave() {
-    // Derive date/time fields from appearance/handover when available
     const draftWithDerived = { ...draft };
     if (draft.appearanceDate) {
       draftWithDerived.date = draft.appearanceDate;
@@ -151,7 +153,7 @@ export default function TripDetailScreen() {
 
     const result = UpdateTripDtoSchema.safeParse(draftWithDerived);
     if (!result.success) {
-      Alert.alert('Ошибка', 'Проверьте данные');
+      Alert.alert(t.common_error, t.detail_checkData);
       return;
     }
     const patch: Partial<LocalCreateTripDto> = {
@@ -176,7 +178,7 @@ export default function TripDetailScreen() {
       setTrip((prev) => ({ ...prev!, ...patch }));
       setEditing(false);
     } catch {
-      Alert.alert('Ошибка', 'Не удалось сохранить');
+      Alert.alert(t.common_error, t.detail_saveError);
     } finally {
       setSaving(false);
     }
@@ -184,11 +186,11 @@ export default function TripDetailScreen() {
 
   function handleExportPress() {
     if (!trip?.id) {
-      Alert.alert('Экспорт недоступен', 'Поездка ещё не синхронизирована с сервером.');
+      Alert.alert(t.detail_exportUnavailable, t.detail_exportUnavailableMsg);
       return;
     }
-    Alert.alert('Экспорт поездки', 'Выберите формат', [
-      { text: 'Отмена', style: 'cancel' },
+    Alert.alert(t.detail_exportTitle, t.detail_chooseFormat, [
+      { text: t.common_cancel, style: 'cancel' },
       {
         text: 'PDF',
         onPress: async () => {
@@ -201,7 +203,7 @@ export default function TripDetailScreen() {
             });
             await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
           } catch {
-            Alert.alert('Ошибка', 'Не удалось экспортировать поездку');
+            Alert.alert(t.common_error, t.detail_exportError);
           } finally {
             setExporting(false);
           }
@@ -212,19 +214,19 @@ export default function TripDetailScreen() {
 
   function handleDeletePress() {
     Alert.alert(
-      'Удалить поездку?',
-      'Это действие нельзя отменить.',
+      t.detail_deleteTitle,
+      t.detail_deleteMsg,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t.common_cancel, style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t.detail_deleteTrip,
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteTrip(id);
               router.back();
             } catch {
-              Alert.alert('Ошибка', 'Не удалось удалить поездку');
+              Alert.alert(t.common_error, t.detail_deleteError);
             }
           },
         },
@@ -257,101 +259,109 @@ export default function TripDetailScreen() {
 
   const hasCycle = !!(trip.appearanceTime || trip.handoverTime);
 
-  // Electricity: prefer per-section sectionMeters, fall back to meterStart/End
   const hasSectionMeters = trip.sectionMeters && trip.sectionMeters.length > 0 &&
     trip.sectionMeters.some((sm) => sm.start !== undefined || sm.end !== undefined);
   const hasElec = hasSectionMeters || trip.meterStart !== undefined || trip.meterEnd !== undefined;
 
+  function pickerModeLabel(mode: PickerMode): string {
+    switch (mode) {
+      case 'appearanceDate': return t.detail_appearanceDate;
+      case 'appearanceTime': return t.detail_appearanceTime;
+      case 'handoverDate': return t.detail_handoverDate;
+      case 'handoverTime': return t.detail_handoverTime;
+      default: return '';
+    }
+  }
+
   return (
     <ScrollView style={s.screen} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
       <TouchableOpacity onPress={() => router.back()} style={s.back}>
-        <Text style={s.backText}>← Назад</Text>
+        <Text style={s.backText}>{t.detail_back}</Text>
       </TouchableOpacity>
 
       <View style={s.titleRow}>
         <Text style={s.title} numberOfLines={2}>{trip.routeFrom} — {trip.routeTo}</Text>
         <TouchableOpacity onPress={editing ? handleCancelEdit : () => setEditing(true)}>
-          <Text style={s.editBtn}>{editing ? 'Отмена' : 'Изменить'}</Text>
+          <Text style={s.editBtn}>{editing ? t.detail_cancel : t.detail_edit}</Text>
         </TouchableOpacity>
       </View>
 
       {!editing ? (
-        /* ── Режим просмотра ── */
         <>
-          {/* Маршрут */}
+          {/* Route */}
           <View style={s.card}>
-            <SectionTitle>Маршрут</SectionTitle>
-            <InfoRow label="Тип поездки" value={TripTypeLabelMap[trip.tripType]} />
-            {trip.trainNumber ? <InfoRow label="Номер поезда" value={trip.trainNumber} /> : null}
-            <InfoRow label="Дата" value={
+            <SectionTitle>{t.detail_secRoute}</SectionTitle>
+            <InfoRow label={t.detail_tripType} value={tripTypeLabel(trip.tripType)} />
+            {trip.trainNumber ? <InfoRow label={t.detail_trainNumber} value={trip.trainNumber} /> : null}
+            <InfoRow label={t.detail_date} value={
               trip.endDate && trip.endDate !== trip.date
                 ? `${formatDateRu(trip.date)} → ${formatDateRu(trip.endDate!)}`
                 : formatDateRu(trip.date)
             } />
             {trip.durationMinutes
-              ? <InfoRow label="Длительность" value={formatDuration(trip.durationMinutes)} />
+              ? <InfoRow label={t.detail_duration} value={fmtDur(trip.durationMinutes, t)} />
               : null}
           </View>
 
-          {/* Состав поезда */}
+          {/* Train */}
           {(trip.trainWeight != null || trip.axleCount != null) && (
             <View style={s.card}>
-              <SectionTitle>Состав поезда</SectionTitle>
+              <SectionTitle>{t.detail_secTrain}</SectionTitle>
               {trip.trainWeight != null
-                ? <InfoRow label="Вес поезда, т" value={String(trip.trainWeight)} />
+                ? <InfoRow label={t.detail_trainWeight} value={String(trip.trainWeight)} />
                 : null}
               {trip.axleCount != null
-                ? <InfoRow label="Количество осей" value={String(trip.axleCount)} />
+                ? <InfoRow label={t.detail_axleCount} value={String(trip.axleCount)} />
                 : null}
             </View>
           )}
 
-          {/* Локомотив (structured fields) */}
+          {/* Loco */}
           {(trip.locoModel || trip.locoNumber || trip.sectionCount != null) && (
             <View style={s.card}>
               <SectionTitle>
-                Локомотив{trip.sectionCount && trip.sectionCount > 1 ? ` · ${trip.sectionCount} сек.` : ''}
+                {t.detail_secLoco}{trip.sectionCount && trip.sectionCount > 1 ? ` · ${trip.sectionCount} сек.` : ''}
               </SectionTitle>
-              {trip.locoModel ? <InfoRow label="Серия" value={trip.locoModel} /> : null}
-              {trip.locoNumber ? <InfoRow label="Номер" value={trip.locoNumber} /> : null}
+              {trip.locoModel ? <InfoRow label={t.detail_locoModel} value={trip.locoModel} /> : null}
+              {trip.locoNumber ? <InfoRow label={t.detail_locoNumber} value={trip.locoNumber} /> : null}
               {trip.sectionCount != null
-                ? <InfoRow label="Количество секций" value={String(trip.sectionCount)} />
+                ? <InfoRow label={t.detail_sectionCount} value={String(trip.sectionCount)} />
                 : null}
             </View>
           )}
 
-          {/* Цикл работы */}
+          {/* Cycle */}
           {hasCycle && (
             <View style={s.card}>
-              <SectionTitle>Цикл работы</SectionTitle>
+              <SectionTitle>{t.detail_secCycle}</SectionTitle>
               {trip.appearanceTime && trip.appearanceDate && (
                 <CycleRow
                   marker="▶"
-                  label="Явка"
+                  label={t.detail_appearance}
                   datetime={formatShortDatetime(trip.appearanceDate, trip.appearanceTime)}
                 />
               )}
               {trip.handoverTime && trip.handoverDate && (
                 <CycleRow
                   marker="■"
-                  label="Сдача"
+                  label={t.detail_handover}
                   datetime={formatShortDatetime(trip.handoverDate, trip.handoverTime)}
                 />
               )}
               {totalCycleMin !== null && totalCycleMin > 0 && (
                 <View style={s.cycleTotalRow}>
-                  <Text style={s.cycleTotalLabel}>Весь цикл</Text>
-                  <Text style={s.cycleTotalValue}>{formatDurMin(totalCycleMin)}</Text>
+                  <Text style={s.cycleTotalLabel}>{t.detail_totalCycle}</Text>
+                  <Text style={s.cycleTotalValue}>{fmtDur(totalCycleMin, t)}</Text>
                 </View>
               )}
             </View>
           )}
 
-          {/* Электроэнергия */}
+          {/* Electricity */}
           {hasElec && (
             <View style={s.card}>
               <SectionTitle>
-                Электроэнергия{trip.sectionCount && trip.sectionCount > 1 ? ` (${trip.sectionCount} сек.)` : ''}
+                {t.detail_secElec}{trip.sectionCount && trip.sectionCount > 1 ? ` (${trip.sectionCount} сек.)` : ''}
               </SectionTitle>
               {hasSectionMeters
                 ? trip.sectionMeters!.map((sm, i) => {
@@ -361,33 +371,32 @@ export default function TripDetailScreen() {
                     return (
                       <View key={i} style={i > 0 ? { marginTop: 8 } : undefined}>
                         {(trip.sectionCount ?? 1) > 1 && (
-                          <Text style={s.sectionLabel}>Секция {i + 1}</Text>
+                          <Text style={s.sectionLabel}>{t.detail_section} {i + 1}</Text>
                         )}
                         {sm.start !== undefined
-                          ? <InfoRow label="Начало" value={`${sm.start} кВт·ч`} />
+                          ? <InfoRow label={t.detail_elecStart} value={`${sm.start} кВт·ч`} />
                           : null}
                         {sm.end !== undefined
-                          ? <InfoRow label="Конец" value={`${sm.end} кВт·ч`} />
+                          ? <InfoRow label={t.detail_elecEnd} value={`${sm.end} кВт·ч`} />
                           : null}
                         {cons !== null
-                          ? <InfoRow label="Расход" value={`${cons.toFixed(0)} кВт·ч`} />
+                          ? <InfoRow label={t.detail_elecConsumption} value={`${cons.toFixed(0)} кВт·ч`} />
                           : null}
                       </View>
                     );
                   })
                 : <>
                     {trip.meterStart !== undefined
-                      ? <InfoRow label="Счётчик на начало" value={`${trip.meterStart} кВт·ч`} />
+                      ? <InfoRow label={t.detail_elecMeterStart} value={`${trip.meterStart} кВт·ч`} />
                       : null}
                     {trip.meterEnd !== undefined
-                      ? <InfoRow label="Счётчик на конец" value={`${trip.meterEnd} кВт·ч`} />
+                      ? <InfoRow label={t.detail_elecMeterEnd} value={`${trip.meterEnd} кВт·ч`} />
                       : null}
                     {trip.meterStart !== undefined && trip.meterEnd !== undefined && trip.meterEnd >= trip.meterStart
-                      ? <InfoRow label="Расход" value={`${(trip.meterEnd - trip.meterStart).toFixed(0)} кВт·ч`} />
+                      ? <InfoRow label={t.detail_elecConsumption} value={`${(trip.meterEnd - trip.meterStart).toFixed(0)} кВт·ч`} />
                       : null}
                   </>
               }
-              {/* Total when multiple sections */}
               {hasSectionMeters && (trip.sectionCount ?? 1) > 1 && (() => {
                 const sms = trip.sectionMeters!;
                 const allValid = sms.every((sm) => sm.start !== undefined && sm.end !== undefined && sm.end >= sm.start);
@@ -395,7 +404,7 @@ export default function TripDetailScreen() {
                 const total = sms.reduce((sum, sm) => sum + (sm.end! - sm.start!), 0);
                 return (
                   <View style={s.cycleTotalRow}>
-                    <Text style={s.cycleTotalLabel}>Итого</Text>
+                    <Text style={s.cycleTotalLabel}>{t.detail_elecTotal}</Text>
                     <Text style={s.cycleTotalValue}>{total.toFixed(0)} кВт·ч</Text>
                   </View>
                 );
@@ -405,7 +414,7 @@ export default function TripDetailScreen() {
 
           {trip.notes ? (
             <View style={s.card}>
-              <SectionTitle>Примечание</SectionTitle>
+              <SectionTitle>{t.detail_secNotes}</SectionTitle>
               <Text style={s.notesText}>{trip.notes}</Text>
             </View>
           ) : null}
@@ -415,7 +424,7 @@ export default function TripDetailScreen() {
             onPress={handleDeletePress}
             activeOpacity={0.75}
           >
-            <Text style={s.deleteBtnText}>Удалить поездку</Text>
+            <Text style={s.deleteBtnText}>{t.detail_deleteTrip}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -437,7 +446,7 @@ export default function TripDetailScreen() {
             })}
             activeOpacity={0.75}
           >
-            <Text style={s.duplicateBtnText}>Дублировать поездку</Text>
+            <Text style={s.duplicateBtnText}>{t.detail_duplicateTrip}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -448,69 +457,68 @@ export default function TripDetailScreen() {
           >
             {exporting
               ? <ActivityIndicator color="#3b82f6" />
-              : <Text style={s.exportBtnText}>Экспорт (PDF)</Text>}
+              : <Text style={s.exportBtnText}>{t.detail_exportPdf}</Text>}
           </TouchableOpacity>
         </>
       ) : (
-        /* ── Режим редактирования ── */
         <>
-          {/* Маршрут */}
+          {/* Route edit */}
           <View style={s.card}>
-            <SectionTitle>Маршрут</SectionTitle>
-            <Text style={s.label}>Станция отправления</Text>
+            <SectionTitle>{t.detail_secRoute}</SectionTitle>
+            <Text style={s.label}>{t.detail_stationFrom}</Text>
             <TextInput
               style={s.input}
               value={draft.routeFrom ?? ''}
               onChangeText={(v) => setField('routeFrom', v)}
               placeholderTextColor="#475569"
-              placeholder="Откуда"
+              placeholder={t.detail_from}
             />
             <View style={s.routeDivider}>
               <View style={s.routeLine} />
               <Text style={s.routeArrow}>↓</Text>
               <View style={s.routeLine} />
             </View>
-            <Text style={s.label}>Станция прибытия</Text>
+            <Text style={s.label}>{t.detail_stationTo}</Text>
             <TextInput
               style={s.input}
               value={draft.routeTo ?? ''}
               onChangeText={(v) => setField('routeTo', v)}
               placeholderTextColor="#475569"
-              placeholder="Куда"
+              placeholder={t.detail_to}
             />
 
-            <Text style={s.label}>Тип поездки</Text>
+            <Text style={s.label}>{t.detail_tripType}</Text>
             <View style={s.chipRow}>
-              {TYPES.map((t) => (
+              {TYPES.map((tripT) => (
                 <TouchableOpacity
-                  key={t}
-                  style={[s.chip, draft.tripType === t && s.chipActive]}
-                  onPress={() => setField('tripType', t)}
+                  key={tripT}
+                  style={[s.chip, draft.tripType === tripT && s.chipActive]}
+                  onPress={() => setField('tripType', tripT)}
                 >
-                  <Text style={[s.chipText, draft.tripType === t && s.chipTextActive]}>
-                    {TripTypeLabelMap[t]}
+                  <Text style={[s.chipText, draft.tripType === tripT && s.chipTextActive]}>
+                    {tripTypeLabel(tripT)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={s.label}>Номер поезда</Text>
+            <Text style={s.label}>{t.detail_trainNumber}</Text>
             <TextInput
               style={s.input}
               value={draft.trainNumber ?? ''}
               onChangeText={(v) => setField('trainNumber', v || undefined)}
               placeholderTextColor="#475569"
-              placeholder="Например: 1234"
+              placeholder="1234"
               keyboardType="numeric"
             />
           </View>
 
-          {/* Состав */}
+          {/* Train edit */}
           <View style={s.card}>
-            <SectionTitle>Состав поезда</SectionTitle>
+            <SectionTitle>{t.detail_secTrain}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Вес поезда, т</Text>
+                <Text style={s.colLabel}>{t.detail_trainWeight}</Text>
                 <TextInput
                   style={s.input}
                   value={draft.trainWeight?.toString() ?? ''}
@@ -522,7 +530,7 @@ export default function TripDetailScreen() {
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Количество осей</Text>
+                <Text style={s.colLabel}>{t.detail_axleCount}</Text>
                 <TextInput
                   style={s.input}
                   value={draft.axleCount?.toString() ?? ''}
@@ -535,12 +543,12 @@ export default function TripDetailScreen() {
             </View>
           </View>
 
-          {/* Локомотив */}
+          {/* Loco edit */}
           <View style={s.card}>
-            <SectionTitle>Локомотив</SectionTitle>
+            <SectionTitle>{t.detail_secLoco}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 2 }}>
-                <Text style={s.colLabel}>Серия</Text>
+                <Text style={s.colLabel}>{t.detail_locoModel}</Text>
                 <TextInput
                   style={s.input}
                   value={draft.locoModel ?? ''}
@@ -551,7 +559,7 @@ export default function TripDetailScreen() {
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Номер</Text>
+                <Text style={s.colLabel}>{t.detail_locoNumber}</Text>
                 <TextInput
                   style={s.input}
                   value={draft.locoNumber ?? ''}
@@ -564,22 +572,22 @@ export default function TripDetailScreen() {
             </View>
           </View>
 
-          {/* Явка */}
+          {/* Appearance edit */}
           <View style={s.card}>
-            <SectionTitle>Явка</SectionTitle>
+            <SectionTitle>{t.detail_appearance}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Дата явки</Text>
+                <Text style={s.colLabel}>{t.detail_appearanceDate}</Text>
                 <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('appearanceDate')} activeOpacity={0.7}>
                   <Text style={draft.appearanceDate ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
-                    {draft.appearanceDate ?? 'Выбрать'}
+                    {draft.appearanceDate ?? t.detail_choose}
                   </Text>
                   <View style={{ flexShrink: 0, paddingLeft: 6 }}><Ionicons name="calendar-outline" size={18} color="#94a3b8" /></View>
                 </TouchableOpacity>
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Время явки</Text>
+                <Text style={s.colLabel}>{t.detail_appearanceTime}</Text>
                 <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('appearanceTime')} activeOpacity={0.7}>
                   <Text style={draft.appearanceTime ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
                     {draft.appearanceTime ?? '--:--'}
@@ -590,27 +598,27 @@ export default function TripDetailScreen() {
             </View>
             {(draft.appearanceDate || draft.appearanceTime) ? (
               <TouchableOpacity onPress={() => setDraft((d) => ({ ...d, appearanceDate: undefined, appearanceTime: undefined }))}>
-                <Text style={s.clearLink}>Очистить явку</Text>
+                <Text style={s.clearLink}>{t.detail_clearAppearance}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {/* Сдача */}
+          {/* Handover edit */}
           <View style={s.card}>
-            <SectionTitle>Сдача</SectionTitle>
+            <SectionTitle>{t.detail_handover}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Дата сдачи</Text>
+                <Text style={s.colLabel}>{t.detail_handoverDate}</Text>
                 <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('handoverDate')} activeOpacity={0.7}>
                   <Text style={draft.handoverDate ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
-                    {draft.handoverDate ?? 'Выбрать'}
+                    {draft.handoverDate ?? t.detail_choose}
                   </Text>
                   <View style={{ flexShrink: 0, paddingLeft: 6 }}><Ionicons name="calendar-outline" size={18} color="#94a3b8" /></View>
                 </TouchableOpacity>
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Время сдачи</Text>
+                <Text style={s.colLabel}>{t.detail_handoverTime}</Text>
                 <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('handoverTime')} activeOpacity={0.7}>
                   <Text style={draft.handoverTime ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
                     {draft.handoverTime ?? '--:--'}
@@ -625,22 +633,22 @@ export default function TripDetailScreen() {
                 draft.handoverDate, draft.handoverTime,
               );
               return cycleMin && cycleMin > 0
-                ? <Text style={s.cycleCalcText}>Цикл: {formatDurMin(cycleMin)}</Text>
-                : <Text style={s.timeError}>Сдача не может быть раньше явки</Text>;
+                ? <Text style={s.cycleCalcText}>{t.detail_cycle}: {fmtDur(cycleMin, t)}</Text>
+                : <Text style={s.timeError}>{t.detail_timeError}</Text>;
             })() : null}
             {(draft.handoverDate || draft.handoverTime) ? (
               <TouchableOpacity onPress={() => setDraft((d) => ({ ...d, handoverDate: undefined, handoverTime: undefined }))}>
-                <Text style={s.clearLink}>Очистить сдачу</Text>
+                <Text style={s.clearLink}>{t.detail_clearHandover}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
-          {/* Электроэнергия */}
+          {/* Electricity edit */}
           <View style={s.card}>
-            <SectionTitle>Электроэнергия</SectionTitle>
+            <SectionTitle>{t.detail_secElec}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Счётчик начало, кВт·ч</Text>
+                <Text style={s.colLabel}>{t.detail_elecMeterStartLabel}</Text>
                 <TextInput
                   style={s.input}
                   value={draft.meterStart?.toString() ?? ''}
@@ -652,7 +660,7 @@ export default function TripDetailScreen() {
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>Счётчик конец, кВт·ч</Text>
+                <Text style={s.colLabel}>{t.detail_elecMeterEndLabel}</Text>
                 <TextInput
                   style={s.input}
                   value={draft.meterEnd?.toString() ?? ''}
@@ -665,21 +673,21 @@ export default function TripDetailScreen() {
             </View>
           </View>
 
-          {/* Примечание */}
+          {/* Notes edit */}
           <View style={s.card}>
-            <SectionTitle>Примечание</SectionTitle>
+            <SectionTitle>{t.detail_secNotes}</SectionTitle>
             <TextInput
               style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
               value={draft.notes ?? ''}
               onChangeText={(v) => setField('notes', v || undefined)}
               placeholderTextColor="#475569"
-              placeholder="Необязательно"
+              placeholder={t.detail_notOptional}
               multiline
             />
           </View>
 
           <TouchableOpacity style={s.btn} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Сохранить изменения</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{t.detail_saveChanges}</Text>}
           </TouchableOpacity>
         </>
       )}
@@ -689,14 +697,9 @@ export default function TripDetailScreen() {
           <View style={s.iosOverlay}>
             <View style={s.iosSheet}>
               <View style={s.iosSheetHeader}>
-                <Text style={s.iosSheetTitle}>
-                  {pickerMode === 'appearanceDate' ? 'Дата явки'
-                    : pickerMode === 'appearanceTime' ? 'Время явки'
-                    : pickerMode === 'handoverDate' ? 'Дата сдачи'
-                    : 'Время сдачи'}
-                </Text>
+                <Text style={s.iosSheetTitle}>{pickerModeLabel(pickerMode)}</Text>
                 <TouchableOpacity onPress={() => setPickerMode(null)}>
-                  <Text style={s.iosSheetDone}>Готово</Text>
+                  <Text style={s.iosSheetDone}>{t.detail_iosDone}</Text>
                 </TouchableOpacity>
               </View>
               {pickerNode}

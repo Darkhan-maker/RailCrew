@@ -7,17 +7,19 @@ import { router } from 'expo-router';
 import { authApi } from '@/services/api.service';
 import { useAuthStore } from '@/store/auth.store';
 import { LoginDtoSchema } from '@railcrew/contracts';
+import { useLang } from '@/i18n';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { setAuth, setDemoMode } = useAuthStore();
+  const { t } = useLang();
 
   async function handleLogin() {
     const result = LoginDtoSchema.safeParse({ email, password });
     if (!result.success) {
-      Alert.alert('Ошибка', 'Заполните все поля корректно');
+      Alert.alert(t.common_error, t.login_errFill);
       return;
     }
     setLoading(true);
@@ -27,7 +29,7 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (e: unknown) {
       const isNetwork = !!(e as any)?.request && !(e as any)?.response;
-      Alert.alert('Ошибка', isNetwork ? 'Сервер недоступен. Проверьте подключение.' : 'Неверный email или пароль');
+      Alert.alert(t.common_error, isNetwork ? t.login_errNetwork : t.login_errCredentials);
     } finally {
       setLoading(false);
     }
@@ -45,7 +47,7 @@ export default function LoginScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={s.title}>RailCrew</Text>
-      <Text style={s.subtitle}>Учет поездок и зарплаты</Text>
+      <Text style={s.subtitle}>{t.login_subtitle}</Text>
       <Text style={s.apiHint} numberOfLines={1}>API: {apiUrl}</Text>
 
       <TextInput
@@ -59,7 +61,7 @@ export default function LoginScreen() {
       />
       <TextInput
         style={s.input}
-        placeholder="Пароль"
+        placeholder={t.login_password}
         placeholderTextColor="#64748b"
         secureTextEntry
         value={password}
@@ -67,16 +69,16 @@ export default function LoginScreen() {
       />
 
       <TouchableOpacity style={s.btn} onPress={handleLogin} disabled={loading}>
-        <Text style={s.btnText}>{loading ? 'Входим...' : 'Войти'}</Text>
+        <Text style={s.btnText}>{loading ? t.login_signingIn : t.login_signIn}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-        <Text style={s.link}>Нет аккаунта? Зарегистрироваться</Text>
+        <Text style={s.link}>{t.login_noAccount}</Text>
       </TouchableOpacity>
 
       <View style={s.dividerRow}>
         <View style={s.dividerLine} />
-        <Text style={s.dividerLabel}>или</Text>
+        <Text style={s.dividerLabel}>{t.login_or}</Text>
         <View style={s.dividerLine} />
       </View>
 
@@ -87,9 +89,9 @@ export default function LoginScreen() {
           router.replace('/(tabs)');
         }}
       >
-        <Text style={s.demoBtnText}>Продолжить без входа</Text>
+        <Text style={s.demoBtnText}>{t.login_demo}</Text>
       </TouchableOpacity>
-      <Text style={s.demoHint}>Данные сохраняются только на устройстве</Text>
+      <Text style={s.demoHint}>{t.login_demoHint}</Text>
     </ScrollView>
     </KeyboardAvoidingView>
   );
