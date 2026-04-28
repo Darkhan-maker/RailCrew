@@ -13,7 +13,8 @@ import {
 import { TripType } from '@railcrew/contracts';
 import { formatDuration } from '@/utils/date';
 import { exportApi } from '@/services/api.service';
-import { useLang, pluralTrips, fmtDur, Strings } from '@/i18n';
+import { useLang, pluralTrips, fmtDur } from '@/i18n';
+import { useTheme, Theme } from '@/theme';
 
 type PeriodFilter = 'DAY' | 'WEEK' | 'MONTH';
 
@@ -26,25 +27,15 @@ function formatDateShort(isoDate: string, lang: string): string {
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-const C = {
-  bg: '#0B0F14',
-  card: '#1A2230',
-  blue: '#4D8DFF',
-  amber: '#F5B301',
-  green: '#3BD48A',
-  purple: '#7B61FF',
-  textPrimary: '#F0F4FF',
-  textSub: '#94A3C0',
-  textMuted: '#6B7A99',
-  divider: '#1F2836',
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  FREIGHT: '#4D8DFF',
-  PASSENGER: '#3BD48A',
-  SHUNTING: '#F5B301',
-  DEAD_RUN: '#6B7A99',
-};
+function typeColor(type: string, theme: Theme): string {
+  const map: Record<string, string> = {
+    FREIGHT: theme.primary,
+    PASSENGER: theme.success,
+    SHUNTING: theme.warning,
+    DEAD_RUN: theme.textMute,
+  };
+  return map[type] ?? theme.textMute;
+}
 
 function getPeriodBounds(period: PeriodFilter): { from: string; to: string } {
   const now = new Date();
@@ -100,6 +91,7 @@ export default function DashboardScreen() {
   const { trips, loadLocal } = useTripsStore();
   const { profile } = useAuthStore();
   const { t, lang } = useLang();
+  const { theme } = useTheme();
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
   const [salaryRule, setSalaryRule] = useState<LocalSalaryRule | null>(null);
   const [settings, setSettings] = useState<LocalSettings | null>(null);
@@ -274,18 +266,21 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}
+      contentContainerStyle={{ paddingBottom: 100 }}
+    >
       <View style={s.greetingRow}>
-        <Text style={s.greeting}>{greeting}</Text>
+        <Text style={[s.greeting, { color: theme.text }]}>{greeting}</Text>
         <TouchableOpacity
-          style={s.exportMonthBtn}
+          style={[s.exportMonthBtn, { borderColor: theme.primary }]}
           onPress={handleExportPress}
           disabled={exporting}
           activeOpacity={0.75}
         >
           {exporting
-            ? <ActivityIndicator color={C.blue} size="small" />
-            : <Text style={s.exportMonthBtnText}>{t.dashboard_exportMonth}</Text>}
+            ? <ActivityIndicator color={theme.primary} size="small" />
+            : <Text style={[s.exportMonthBtnText, { color: theme.primary }]}>{t.dashboard_exportMonth}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -294,11 +289,19 @@ export default function DashboardScreen() {
         {PERIODS.map((p) => (
           <TouchableOpacity
             key={p.value}
-            style={[s.periodBtn, period === p.value && s.periodBtnActive]}
+            style={[
+              s.periodBtn,
+              { backgroundColor: theme.card, borderColor: theme.border },
+              period === p.value && { backgroundColor: theme.primary, borderColor: theme.primary },
+            ]}
             onPress={() => setPeriod(p.value)}
             activeOpacity={0.75}
           >
-            <Text style={[s.periodBtnText, period === p.value && s.periodBtnTextActive]}>
+            <Text style={[
+              s.periodBtnText,
+              { color: theme.textMute },
+              period === p.value && { color: '#fff', fontWeight: '600' },
+            ]}>
               {p.label}
             </Text>
           </TouchableOpacity>
@@ -309,9 +312,9 @@ export default function DashboardScreen() {
       {salary && salary.total > 0 ? (
         <HeroSalaryCard salary={salary} periodLabel={getPeriodLabel(period)} />
       ) : (
-        <View style={s.card}>
-          <Text style={s.cardLabel}>{t.dashboard_salary} · {getPeriodLabel(period)}</Text>
-          <Text style={s.placeholder}>
+        <View style={[s.card, { backgroundColor: theme.card }]}>
+          <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_salary} · {getPeriodLabel(period)}</Text>
+          <Text style={[s.placeholder, { color: theme.textMute }]}>
             {!salaryRule || salaryRule.ratePerHour === 0
               ? t.dashboard_setRate
               : t.dashboard_noTrips}
@@ -330,31 +333,31 @@ export default function DashboardScreen() {
       </View>
 
       {filtered.length === 0 ? (
-        <Text style={s.empty}>{t.dashboard_empty}</Text>
+        <Text style={[s.empty, { color: theme.textMute }]}>{t.dashboard_empty}</Text>
       ) : (
         <>
           {/* Salary breakdown */}
           {salary && (
-            <View style={s.card}>
-              <Text style={s.cardLabel}>{t.dashboard_breakdown}</Text>
-              <BreakdownRow color={C.blue} label={`${t.dashboard_base} (${Math.round(salary.regularHours)} ${t.hour_abbr})`} amount={salary.basePay} />
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_breakdown}</Text>
+              <BreakdownRow color={theme.primary} label={`${t.dashboard_base} (${Math.round(salary.regularHours)} ${t.hour_abbr})`} amount={salary.basePay} />
               {salary.nightPay > 0 && (
-                <BreakdownRow color={C.purple} label={`${t.dashboard_night} (${Math.round(salary.nightHours)} ${t.hour_abbr})`} amount={salary.nightPay} />
+                <BreakdownRow color="#8B5CF6" label={`${t.dashboard_night} (${Math.round(salary.nightHours)} ${t.hour_abbr})`} amount={salary.nightPay} />
               )}
               {salary.overtimePay > 0 && (
-                <BreakdownRow color={C.amber} label={`${t.dashboard_overtime} (${Math.round(salary.overtimeHours)} ${t.hour_abbr})`} amount={salary.overtimePay} />
+                <BreakdownRow color={theme.warning} label={`${t.dashboard_overtime} (${Math.round(salary.overtimeHours)} ${t.hour_abbr})`} amount={salary.overtimePay} />
               )}
               {salary.bonusPay > 0 && (
-                <BreakdownRow color={C.green} label={t.dashboard_bonuses} amount={salary.bonusPay} />
+                <BreakdownRow color={theme.success} label={t.dashboard_bonuses} amount={salary.bonusPay} />
               )}
-              <View style={s.divider} />
-              <BreakdownRow color={C.blue} label={t.dashboard_total} amount={salary.total} highlight />
+              <View style={[s.divider, { backgroundColor: theme.border }]} />
+              <BreakdownRow color={theme.primary} label={t.dashboard_total} amount={salary.total} highlight />
             </View>
           )}
 
           {/* Recent trips */}
-          <View style={s.card}>
-            <Text style={s.cardLabel}>{t.dashboard_recentTrips}</Text>
+          <View style={[s.card, { backgroundColor: theme.card }]}>
+            <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_recentTrips}</Text>
             {filtered.slice(0, 3).map((tr, i) => (
               <TripRow
                 key={tr.id ?? tr.localId ?? i}
@@ -365,7 +368,7 @@ export default function DashboardScreen() {
               />
             ))}
             {filtered.length > 3 && (
-              <Text style={s.moreText}>
+              <Text style={[s.moreText, { color: theme.textMute }]}>
                 {lang === 'kk'
                   ? `тағы ${filtered.length - 3} ${pluralTrips(filtered.length - 3, t)}`
                   : `ещё ${filtered.length - 3} ${pluralTrips(filtered.length - 3, t)}`}
@@ -375,26 +378,26 @@ export default function DashboardScreen() {
 
           {/* Night hours */}
           {settings?.trackNightHours && totalNightMinutes > 0 && (
-            <View style={[s.card, s.accentLeft, { borderLeftColor: C.purple }]}>
-              <Text style={s.cardLabel}>{t.dashboard_nightHours}</Text>
-              <Text style={[s.monoLarge, { color: C.purple }]}>{formatDuration(totalNightMinutes)}</Text>
+            <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderLeftColor: '#8B5CF6' }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_nightHours}</Text>
+              <Text style={[s.monoLarge, { color: '#8B5CF6' }]}>{formatDuration(totalNightMinutes)}</Text>
             </View>
           )}
 
           {/* Work cycle */}
           {cycleStats.cycleCount > 0 && (
-            <View style={s.card}>
-              <Text style={s.cardLabel}>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>
                 {t.dashboard_workCycle} · {cycleStats.cycleCount} {pluralTrips(cycleStats.cycleCount, t)}
               </Text>
               <View style={s.metricRow}>
-                <Text style={s.metricLabel}>{t.dashboard_totalCycle}</Text>
-                <Text style={s.metricValue}>{fmtDur(cycleStats.totalCycleMin, t)}</Text>
+                <Text style={[s.metricLabel, { color: theme.textMute }]}>{t.dashboard_totalCycle}</Text>
+                <Text style={[s.metricValue, { color: theme.text }]}>{fmtDur(cycleStats.totalCycleMin, t)}</Text>
               </View>
               {cycleStats.cycleCount > 1 && (
                 <View style={s.metricRow}>
-                  <Text style={s.metricLabel}>{t.dashboard_avgCycle}</Text>
-                  <Text style={[s.metricValue, { color: C.textMuted }]}>
+                  <Text style={[s.metricLabel, { color: theme.textMute }]}>{t.dashboard_avgCycle}</Text>
+                  <Text style={[s.metricValue, { color: theme.textDim }]}>
                     {fmtDur(Math.round(cycleStats.totalCycleMin / cycleStats.cycleCount), t)}
                   </Text>
                 </View>
@@ -404,16 +407,16 @@ export default function DashboardScreen() {
 
           {/* Electricity */}
           {elecStats !== null && (
-            <View style={[s.card, s.accentLeft, { borderLeftColor: C.green }]}>
-              <Text style={s.cardLabel}>{t.dashboard_electricity}</Text>
+            <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderLeftColor: theme.success }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_electricity}</Text>
               <View style={s.metricRow}>
-                <Text style={s.metricLabel}>{t.dashboard_elecPeriod}</Text>
-                <Text style={[s.metricValue, { color: C.green }]}>{elecStats.total.toFixed(0)} кВт·ч</Text>
+                <Text style={[s.metricLabel, { color: theme.textMute }]}>{t.dashboard_elecPeriod}</Text>
+                <Text style={[s.metricValue, { color: theme.success }]}>{elecStats.total.toFixed(0)} кВт·ч</Text>
               </View>
               {elecStats.count > 1 && (
                 <View style={s.metricRow}>
-                  <Text style={s.metricLabel}>{t.dashboard_elecAvg}</Text>
-                  <Text style={[s.metricValue, { color: C.textMuted }]}>
+                  <Text style={[s.metricLabel, { color: theme.textMute }]}>{t.dashboard_elecAvg}</Text>
+                  <Text style={[s.metricValue, { color: theme.textDim }]}>
                     {Math.round(elecStats.total / elecStats.count)} кВт·ч
                   </Text>
                 </View>
@@ -423,15 +426,15 @@ export default function DashboardScreen() {
 
           {/* Trip types */}
           {typeStats.length > 0 && (
-            <View style={s.card}>
-              <Text style={s.cardLabel}>{t.dashboard_byType}</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_byType}</Text>
               {typeStats.map(([type, count]) => (
                 <View key={type} style={s.metricRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={[s.dot, { backgroundColor: TYPE_COLORS[type] ?? C.textMuted }]} />
-                    <Text style={s.metricLabel}>{tripTypeLabel(type as TripType)}</Text>
+                    <View style={[s.dot, { backgroundColor: typeColor(type, theme) }]} />
+                    <Text style={[s.metricLabel, { color: theme.textMute }]}>{tripTypeLabel(type as TripType)}</Text>
                   </View>
-                  <Text style={s.metricValue}>{count}</Text>
+                  <Text style={[s.metricValue, { color: theme.text }]}>{count}</Text>
                 </View>
               ))}
             </View>
@@ -439,12 +442,12 @@ export default function DashboardScreen() {
 
           {/* Locos */}
           {locoStats.length > 0 && (
-            <View style={s.card}>
-              <Text style={s.cardLabel}>{t.dashboard_locos}</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_locos}</Text>
               {locoStats.map((l, i) => (
                 <View key={i} style={s.metricRow}>
-                  <Text style={s.metricLabel} numberOfLines={1}>{l.label}</Text>
-                  <Text style={s.metricValue}>
+                  <Text style={[s.metricLabel, { color: theme.textMute }]} numberOfLines={1}>{l.label}</Text>
+                  <Text style={[s.metricValue, { color: theme.text }]}>
                     {l.count} {pluralTrips(l.count, t)} · {fmtDur(l.totalMin, t)}
                   </Text>
                 </View>
@@ -454,12 +457,12 @@ export default function DashboardScreen() {
 
           {/* Routes */}
           {routeStats.length > 0 && (
-            <View style={s.card}>
-              <Text style={s.cardLabel}>{t.dashboard_routes}</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_routes}</Text>
               {routeStats.map((r, i) => (
                 <View key={i} style={{ marginBottom: 10 }}>
-                  <Text style={s.metricValue} numberOfLines={1}>{r.routeFrom} — {r.routeTo}</Text>
-                  <Text style={[s.metricLabel, { marginTop: 2 }]}>
+                  <Text style={[s.metricValue, { color: theme.text }]} numberOfLines={1}>{r.routeFrom} — {r.routeTo}</Text>
+                  <Text style={[s.metricLabel, { color: theme.textMute, marginTop: 2 }]}>
                     {r.count} {pluralTrips(r.count, t)} · {fmtDur(r.totalMinutes, t)}
                   </Text>
                 </View>
@@ -482,26 +485,31 @@ function HeroSalaryCard({
   periodLabel: string;
 }) {
   const { t } = useLang();
+  const { theme } = useTheme();
   const { basePay, nightPay, overtimePay, bonusPay, total } = salary;
   const safeTotal = Math.max(total, 1);
 
   return (
-    <View style={s.heroCard}>
-      <Text style={s.cardLabel}>{t.dashboard_salary} · {periodLabel}</Text>
-      <Text style={s.heroAmount}>{total.toLocaleString()} ₸</Text>
+    <View style={[s.heroCard, { backgroundColor: theme.primaryDark, borderTopColor: theme.primary }]}>
+      {/* pseudo-gradient overlay */}
+      <View style={[StyleSheet.absoluteFill, s.heroGlowLeft, { backgroundColor: theme.primary }]} />
+      <View style={[StyleSheet.absoluteFill, s.heroGlowRight, { backgroundColor: theme.primaryDark }]} />
 
-      <View style={s.stackedBar}>
-        {basePay > 0 && <View style={{ flex: basePay / safeTotal, backgroundColor: C.blue }} />}
-        {nightPay > 0 && <View style={{ flex: nightPay / safeTotal, backgroundColor: C.purple }} />}
-        {overtimePay > 0 && <View style={{ flex: overtimePay / safeTotal, backgroundColor: C.amber }} />}
-        {bonusPay > 0 && <View style={{ flex: bonusPay / safeTotal, backgroundColor: C.green }} />}
+      <Text style={[s.cardLabel, { color: '#ffffff88', zIndex: 1 }]}>{t.dashboard_salary} · {periodLabel}</Text>
+      <Text style={[s.heroAmount, { zIndex: 1 }]}>{total.toLocaleString()} ₸</Text>
+
+      <View style={[s.stackedBar, { zIndex: 1 }]}>
+        {basePay > 0 && <View style={{ flex: basePay / safeTotal, backgroundColor: '#ffffff66' }} />}
+        {nightPay > 0 && <View style={{ flex: nightPay / safeTotal, backgroundColor: '#8B5CF666' }} />}
+        {overtimePay > 0 && <View style={{ flex: overtimePay / safeTotal, backgroundColor: '#F59E0B99' }} />}
+        {bonusPay > 0 && <View style={{ flex: bonusPay / safeTotal, backgroundColor: '#10B98199' }} />}
       </View>
 
-      <View style={s.legendRow}>
-        {basePay > 0 && <LegendDot color={C.blue} label={t.dashboard_base} />}
-        {nightPay > 0 && <LegendDot color={C.purple} label={t.dashboard_night} />}
-        {overtimePay > 0 && <LegendDot color={C.amber} label={t.dashboard_overtime} />}
-        {bonusPay > 0 && <LegendDot color={C.green} label={t.dashboard_bonuses} />}
+      <View style={[s.legendRow, { zIndex: 1 }]}>
+        {basePay > 0 && <LegendDot color="#ffffff99" label={t.dashboard_base} />}
+        {nightPay > 0 && <LegendDot color="#8B5CF6cc" label={t.dashboard_night} />}
+        {overtimePay > 0 && <LegendDot color="#F59E0Bcc" label={t.dashboard_overtime} />}
+        {bonusPay > 0 && <LegendDot color="#10B981cc" label={t.dashboard_bonuses} />}
       </View>
     </View>
   );
@@ -513,23 +521,25 @@ function NormTile({ pct, hoursWorked, hoursNorm }: {
   hoursNorm: number;
 }) {
   const { t } = useLang();
-  const color = pct >= 1 ? C.amber : C.blue;
+  const { theme } = useTheme();
+  const color = pct >= 1 ? theme.warning : theme.primary;
   return (
-    <View style={[s.tile, { alignItems: 'center' }]}>
+    <View style={[s.tile, { alignItems: 'center', backgroundColor: theme.card }]}>
       <View style={[s.normRing, { borderColor: color }]}>
         <Text style={[s.normPct, { color }]}>{Math.round(pct * 100)}%</Text>
       </View>
-      <Text style={s.tileLabel}>{t.dashboard_norm}</Text>
-      <Text style={s.tileSub}>{hoursWorked} / {hoursNorm} {t.hour_abbr}</Text>
+      <Text style={[s.tileLabel, { color: theme.textMute }]}>{t.dashboard_norm}</Text>
+      <Text style={[s.tileSub, { color: theme.textDim }]}>{hoursWorked} / {hoursNorm} {t.hour_abbr}</Text>
     </View>
   );
 }
 
 function StatTile({ label, value }: { label: string; value: string }) {
+  const { theme } = useTheme();
   return (
-    <View style={s.tile}>
-      <Text style={s.tileValue}>{value}</Text>
-      <Text style={s.tileLabel}>{label}</Text>
+    <View style={[s.tile, { backgroundColor: theme.card }]}>
+      <Text style={[s.tileValue, { color: theme.primary }]}>{value}</Text>
+      <Text style={[s.tileLabel, { color: theme.textMute }]}>{label}</Text>
     </View>
   );
 }
@@ -540,15 +550,17 @@ function BreakdownRow({ color, label, amount, highlight }: {
   amount: number;
   highlight?: boolean;
 }) {
+  const { theme } = useTheme();
   return (
     <View style={s.breakdownRow}>
       <View style={[s.dot, { backgroundColor: color }]} />
-      <Text style={[s.breakdownLabel, highlight && { color: C.textPrimary, fontWeight: '600' }]}>
+      <Text style={[s.breakdownLabel, { color: theme.textMute }, highlight && { color: theme.text, fontWeight: '600' }]}>
         {label}
       </Text>
       <Text style={[
         s.breakdownAmount,
-        highlight && { color: C.blue, fontSize: 16, fontWeight: '700' },
+        { color: theme.text },
+        highlight && { color: theme.primary, fontSize: 16, fontWeight: '700' },
       ]}>
         {amount.toLocaleString()} ₸
       </Text>
@@ -571,12 +583,13 @@ function TripRow({ trip, last, tripTypeLabel, lang }: {
   tripTypeLabel: string;
   lang: string;
 }) {
-  const color = TYPE_COLORS[trip.tripType] ?? C.textMuted;
+  const { theme } = useTheme();
+  const color = typeColor(trip.tripType, theme);
 
   return (
-    <View style={[s.tripRow, !last && { borderBottomWidth: 1, borderBottomColor: C.divider }]}>
+    <View style={[s.tripRow, !last && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
       <View style={s.tripTop}>
-        <Text style={s.tripRoute} numberOfLines={1}>
+        <Text style={[s.tripRoute, { color: theme.text }]} numberOfLines={1}>
           {trip.routeFrom} → {trip.routeTo}
         </Text>
         <View style={[s.typeChip, { backgroundColor: color + '26' }]}>
@@ -584,12 +597,12 @@ function TripRow({ trip, last, tripTypeLabel, lang }: {
         </View>
       </View>
       <View style={s.tripMeta}>
-        <Text style={s.tripMetaText}>{formatDateShort(trip.date, lang)}</Text>
-        <Text style={[s.tripMetaText, { fontFamily: 'monospace' }]}>
+        <Text style={[s.tripMetaText, { color: theme.textMute }]}>{formatDateShort(trip.date, lang)}</Text>
+        <Text style={[s.tripMetaText, { color: theme.textMute, fontFamily: 'monospace' }]}>
           {formatDuration(trip.durationMinutes ?? 0)}
         </Text>
         {!trip.syncedAt && (
-          <Text style={[s.tripMetaText, { color: C.amber }]}>{lang === 'kk' ? '● жергілікті' : '● локально'}</Text>
+          <Text style={[s.tripMetaText, { color: theme.warning }]}>{lang === 'kk' ? '● жергілікті' : '● локально'}</Text>
         )}
       </View>
     </View>
@@ -599,43 +612,45 @@ function TripRow({ trip, last, tripTypeLabel, lang }: {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
-
   greetingRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     marginTop: 48, marginBottom: 12,
   },
-  greeting: { color: C.textPrimary, fontSize: 22, fontWeight: '700', flex: 1 },
+  greeting: { fontSize: 22, fontWeight: '700', flex: 1 },
   exportMonthBtn: {
-    borderWidth: 1, borderColor: C.blue, borderRadius: 10,
+    borderWidth: 1, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 7, marginLeft: 12,
   },
-  exportMonthBtnText: { color: C.blue, fontSize: 13, fontWeight: '600' },
+  exportMonthBtnText: { fontSize: 13, fontWeight: '600' },
 
   periodRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   periodBtn: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: C.card, borderWidth: 1, borderColor: C.divider,
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
   },
-  periodBtnActive: { backgroundColor: C.blue, borderColor: C.blue },
-  periodBtnText: { color: C.textMuted, fontSize: 14 },
-  periodBtnTextActive: { color: '#fff', fontWeight: '600' },
+  periodBtnText: { fontSize: 14 },
 
-  card: { backgroundColor: C.card, borderRadius: 16, padding: 16, marginBottom: 12 },
+  card: { borderRadius: 16, padding: 16, marginBottom: 12 },
   cardLabel: {
-    color: C.textMuted, fontSize: 11, fontWeight: '600',
+    fontSize: 11, fontWeight: '600',
     letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10,
   },
   accentLeft: { borderLeftWidth: 3 },
-  divider: { height: 1, backgroundColor: C.divider, marginVertical: 8 },
-  placeholder: { color: C.textMuted, fontSize: 14, paddingVertical: 4 },
+  divider: { height: 1, marginVertical: 8 },
+  placeholder: { fontSize: 14, paddingVertical: 4 },
 
   heroCard: {
-    backgroundColor: '#1A3A5C', borderRadius: 16, padding: 20, marginBottom: 12,
-    borderTopWidth: 2, borderTopColor: '#2472CC',
+    borderRadius: 16, padding: 20, marginBottom: 12,
+    borderTopWidth: 2, overflow: 'hidden',
+  },
+  heroGlowLeft: {
+    opacity: 0.25, borderRadius: 16,
+    left: -40, top: -40, right: '40%', bottom: -40,
+  },
+  heroGlowRight: {
+    opacity: 0.0, borderRadius: 16,
   },
   heroAmount: {
-    color: C.textPrimary, fontSize: 38, fontWeight: '700',
+    color: '#fff', fontSize: 38, fontWeight: '700',
     fontFamily: 'monospace', marginBottom: 16,
   },
   stackedBar: {
@@ -643,16 +658,16 @@ const s = StyleSheet.create({
   },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendLabel: { color: C.textSub, fontSize: 12 },
+  legendLabel: { color: '#ffffffaa', fontSize: 12 },
 
   tileRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   tile: {
-    flex: 1, backgroundColor: C.card, borderRadius: 16, padding: 16,
+    flex: 1, borderRadius: 16, padding: 16,
     alignItems: 'center', justifyContent: 'center',
   },
-  tileValue: { color: C.blue, fontSize: 32, fontWeight: '700', fontFamily: 'monospace' },
-  tileLabel: { color: C.textMuted, fontSize: 12, marginTop: 6 },
-  tileSub: { color: C.textSub, fontSize: 11, marginTop: 2 },
+  tileValue: { fontSize: 32, fontWeight: '700', fontFamily: 'monospace' },
+  tileLabel: { fontSize: 12, marginTop: 6 },
+  tileSub: { fontSize: 11, marginTop: 2 },
 
   normRing: {
     width: 72, height: 72, borderRadius: 36, borderWidth: 5,
@@ -661,25 +676,23 @@ const s = StyleSheet.create({
   normPct: { fontSize: 15, fontWeight: '700', fontFamily: 'monospace' },
 
   breakdownRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  breakdownLabel: { flex: 1, color: C.textMuted, fontSize: 14 },
-  breakdownAmount: { color: C.textPrimary, fontSize: 14, fontWeight: '600', fontFamily: 'monospace' },
+  breakdownLabel: { flex: 1, fontSize: 14 },
+  breakdownAmount: { fontSize: 14, fontWeight: '600', fontFamily: 'monospace' },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10, flexShrink: 0 },
 
   tripRow: { paddingVertical: 12 },
   tripTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  tripRoute: { color: C.textPrimary, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
+  tripRoute: { fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
   typeChip: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0 },
   typeChipText: { fontSize: 11, fontWeight: '600' },
   tripMeta: { flexDirection: 'row', gap: 12 },
-  tripMetaText: { color: C.textMuted, fontSize: 12 },
-  moreText: { color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 6 },
+  tripMetaText: { fontSize: 12 },
+  moreText: { fontSize: 12, textAlign: 'center', marginTop: 6 },
 
   metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  metricLabel: { color: C.textMuted, fontSize: 14, flex: 1, paddingRight: 8 },
-  metricValue: { color: C.textPrimary, fontSize: 14, fontWeight: '600' },
+  metricLabel: { fontSize: 14, flex: 1, paddingRight: 8 },
+  metricValue: { fontSize: 14, fontWeight: '600' },
   monoLarge: { fontSize: 24, fontWeight: '700', fontFamily: 'monospace', marginTop: 4 },
 
-  empty: { color: C.textMuted, textAlign: 'center', marginTop: 40, fontSize: 15 },
-
-  hour_abbr: {},
+  empty: { textAlign: 'center', marginTop: 40, fontSize: 15 },
 });

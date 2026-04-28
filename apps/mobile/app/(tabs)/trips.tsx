@@ -12,26 +12,7 @@ import { TripType, TripTypeLabelMap } from '@railcrew/contracts';
 import { LocalTrip } from '@/services/storage.service';
 import { formatDateRu } from '@/utils/date';
 import { useLang, pluralTrips, fmtDur, Strings } from '@/i18n';
-
-// ─── Design tokens ───────────────────────────────────────────────────────────
-
-const C = {
-  bg: '#0B0F14',
-  surface: '#111820',
-  card: '#192030',
-  cardHi: '#1F2A3D',
-  line: '#263245',
-  lineSoft: '#1C2736',
-  text: '#E8EEF5',
-  textDim: '#8A99AD',
-  textMute: '#5B6A7E',
-  blue: '#2472CC',
-  blueDark: '#1A5BA8',
-  blueDim: '#0D3D7A',
-  amber: '#F5B301',
-  green: '#3BD48A',
-  danger: '#FF5A5F',
-};
+import { useTheme, Theme } from '@/theme';
 
 // ─── Period filter ────────────────────────────────────────────────────────────
 
@@ -58,12 +39,15 @@ function getPeriodBounds(period: PeriodFilter): { from: string; to: string } | n
 
 const TRIP_TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
 
-const TRIP_TYPE_COLORS: Record<string, string> = {
-  FREIGHT: '#2472CC',
-  PASSENGER: '#3BD48A',
-  SHUNTING: '#F5B301',
-  DEAD_RUN: '#5B6A7E',
-};
+function tripTypeColor(type: string, theme: Theme): string {
+  const map: Record<string, string> = {
+    FREIGHT: theme.primary,
+    PASSENGER: theme.success,
+    SHUNTING: theme.warning,
+    DEAD_RUN: theme.textMute,
+  };
+  return map[type] ?? theme.textMute;
+}
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
@@ -165,6 +149,7 @@ function FilterModal({
   onApply,
 }: FilterModalProps) {
   const { t } = useLang();
+  const { theme } = useTheme();
   const [routeFrom, setRouteFrom] = useState(initRouteFrom);
   const [routeTo, setRouteTo] = useState(initRouteTo);
   const [dateFrom, setDateFrom] = useState(initDateFrom);
@@ -201,74 +186,86 @@ function FilterModal({
     setTripType(null);
   }
 
+  const inputStyle = [ms.input, {
+    backgroundColor: theme.surface,
+    color: theme.text,
+    borderColor: theme.border,
+  }];
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={ms.overlay}>
-        <View style={ms.sheet}>
-          <View style={ms.handle} />
-          <Text style={ms.title}>{t.trips_modalTitle}</Text>
+        <View style={[ms.sheet, { backgroundColor: theme.card }]}>
+          <View style={[ms.handle, { backgroundColor: theme.border }]} />
+          <Text style={[ms.title, { color: theme.text }]}>{t.trips_modalTitle}</Text>
 
-          <Text style={ms.label}>{t.trips_stationFrom}</Text>
+          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_stationFrom}</Text>
           <TextInput
-            style={ms.input}
+            style={inputStyle}
             placeholder={t.trips_exFrom}
-            placeholderTextColor={C.textMute}
+            placeholderTextColor={theme.textMute}
             value={routeFrom}
             onChangeText={setRouteFrom}
             autoCapitalize="words"
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>{t.trips_stationTo}</Text>
+          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_stationTo}</Text>
           <TextInput
-            style={ms.input}
+            style={inputStyle}
             placeholder={t.trips_exTo}
-            placeholderTextColor={C.textMute}
+            placeholderTextColor={theme.textMute}
             value={routeTo}
             onChangeText={setRouteTo}
             autoCapitalize="words"
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>{t.trips_dateFrom}</Text>
+          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_dateFrom}</Text>
           <TextInput
-            style={ms.input}
+            style={inputStyle}
             placeholder="2025-01-01"
-            placeholderTextColor={C.textMute}
+            placeholderTextColor={theme.textMute}
             value={dateFrom}
             onChangeText={setDateFrom}
             keyboardType="numbers-and-punctuation"
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>{t.trips_dateTo}</Text>
+          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_dateTo}</Text>
           <TextInput
-            style={ms.input}
+            style={inputStyle}
             placeholder="2025-12-31"
-            placeholderTextColor={C.textMute}
+            placeholderTextColor={theme.textMute}
             value={dateTo}
             onChangeText={setDateTo}
             keyboardType="numbers-and-punctuation"
             autoCorrect={false}
           />
 
-          <Text style={ms.label}>{t.trips_tripType}</Text>
+          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_tripType}</Text>
           <View style={ms.chipWrap}>
             <TouchableOpacity
-              style={[ms.chip, tripType === null && ms.chipActive]}
+              style={[ms.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                tripType === null && { backgroundColor: theme.primary, borderColor: theme.primary }]}
               onPress={() => setTripType(null)}
               activeOpacity={0.75}
             >
-              <Text style={[ms.chipText, tripType === null && ms.chipTextActive]}>{t.trips_all}</Text>
+              <Text style={[ms.chipText, { color: theme.textMute },
+                tripType === null && { color: '#fff', fontWeight: '600' }]}>
+                {t.trips_all}
+              </Text>
             </TouchableOpacity>
             {TRIP_TYPES.map((tripT) => (
               <TouchableOpacity
                 key={tripT}
-                style={[ms.chip, tripType === tripT && ms.chipActive]}
+                style={[ms.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                  tripType === tripT && { backgroundColor: theme.primary, borderColor: theme.primary }]}
                 onPress={() => setTripType(tripType === tripT ? null : tripT)}
                 activeOpacity={0.75}
               >
-                <Text style={[ms.chipText, tripType === tripT && ms.chipTextActive]}>
+                <Text style={[ms.chipText, { color: theme.textMute },
+                  tripType === tripT && { color: '#fff', fontWeight: '600' }]}>
                   {tripTypeLabel(tripT)}
                 </Text>
               </TouchableOpacity>
@@ -276,10 +273,18 @@ function FilterModal({
           </View>
 
           <View style={ms.actions}>
-            <TouchableOpacity style={ms.resetBtn} onPress={handleReset} activeOpacity={0.75}>
-              <Text style={ms.resetBtnText}>{t.trips_modalReset}</Text>
+            <TouchableOpacity
+              style={[ms.resetBtn, { borderColor: theme.border }]}
+              onPress={handleReset}
+              activeOpacity={0.75}
+            >
+              <Text style={[ms.resetBtnText, { color: theme.textDim }]}>{t.trips_modalReset}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={ms.applyBtn} onPress={handleApply} activeOpacity={0.75}>
+            <TouchableOpacity
+              style={[ms.applyBtn, { backgroundColor: theme.primary }]}
+              onPress={handleApply}
+              activeOpacity={0.75}
+            >
               <Text style={ms.applyBtnText}>{t.trips_modalApply}</Text>
             </TouchableOpacity>
           </View>
@@ -294,6 +299,7 @@ function FilterModal({
 export default function TripsScreen() {
   const { trips, isLoading, loadLocal, syncPending, deleteTrip } = useTripsStore();
   const { t } = useLang();
+  const { theme } = useTheme();
 
   const PERIOD_LABELS = useMemo(() => [
     { label: t.trips_all, value: 'ALL' as PeriodFilter },
@@ -309,7 +315,6 @@ export default function TripsScreen() {
     DEAD_RUN: t.tripType_DEAD_RUN,
   })[type] ?? type;
 
-  // ── Filter state ────────────────────────────────────────────────────────────
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
   const [search, setSearch] = useState('');
   const [tripTypeFilter, setTripTypeFilter] = useState<TripType | null>(null);
@@ -350,62 +355,59 @@ export default function TripsScreen() {
     syncPending().catch(() => {});
   }, []);
 
-  // ── Filtering ───────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let result = trips;
 
     const bounds = getPeriodBounds(period);
-    if (bounds) result = result.filter((t) => t.date >= bounds.from && t.date <= bounds.to);
+    if (bounds) result = result.filter((tr) => tr.date >= bounds.from && tr.date <= bounds.to);
 
-    if (modalDateFrom) result = result.filter((t) => t.date >= modalDateFrom);
-    if (modalDateTo) result = result.filter((t) => t.date <= modalDateTo);
+    if (modalDateFrom) result = result.filter((tr) => tr.date >= modalDateFrom);
+    if (modalDateTo) result = result.filter((tr) => tr.date <= modalDateTo);
 
     const q = search.trim().toLowerCase();
     if (q) {
-      result = result.filter((t) =>
-        t.routeFrom.toLowerCase().includes(q) ||
-        t.routeTo.toLowerCase().includes(q) ||
-        (t.trainNumber?.toLowerCase().includes(q)) ||
-        (t.locoModel?.toLowerCase().includes(q)) ||
-        (t.locoNumber?.toLowerCase().includes(q)) ||
-        (t.notes?.toLowerCase().includes(q))
+      result = result.filter((tr) =>
+        tr.routeFrom.toLowerCase().includes(q) ||
+        tr.routeTo.toLowerCase().includes(q) ||
+        (tr.trainNumber?.toLowerCase().includes(q)) ||
+        (tr.locoModel?.toLowerCase().includes(q)) ||
+        (tr.locoNumber?.toLowerCase().includes(q)) ||
+        (tr.notes?.toLowerCase().includes(q))
       );
     }
 
     if (modalRouteFrom) {
       const rf = modalRouteFrom.trim().toLowerCase();
-      result = result.filter((t) => t.routeFrom.toLowerCase().includes(rf));
+      result = result.filter((tr) => tr.routeFrom.toLowerCase().includes(rf));
     }
     if (modalRouteTo) {
       const rt = modalRouteTo.trim().toLowerCase();
-      result = result.filter((t) => t.routeTo.toLowerCase().includes(rt));
+      result = result.filter((tr) => tr.routeTo.toLowerCase().includes(rt));
     }
 
     const effectiveTripType = modalTripType ?? tripTypeFilter;
-    if (effectiveTripType) result = result.filter((t) => t.tripType === effectiveTripType);
+    if (effectiveTripType) result = result.filter((tr) => tr.tripType === effectiveTripType);
 
-    if (locoFilter) result = result.filter((t) => t.locoModel === locoFilter);
-    if (unsyncedOnly) result = result.filter((t) => !t.syncedAt);
-    if (multiSectionOnly) result = result.filter((t) => (t.sectionCount ?? 1) > 1);
+    if (locoFilter) result = result.filter((tr) => tr.locoModel === locoFilter);
+    if (unsyncedOnly) result = result.filter((tr) => !tr.syncedAt);
+    if (multiSectionOnly) result = result.filter((tr) => (tr.sectionCount ?? 1) > 1);
 
     return result;
   }, [trips, period, search, tripTypeFilter, locoFilter, unsyncedOnly, multiSectionOnly,
     modalRouteFrom, modalRouteTo, modalDateFrom, modalDateTo, modalTripType]);
 
   const totalMinutes = useMemo(
-    () => filtered.reduce((sum, t) => sum + (t.durationMinutes ?? 0), 0),
+    () => filtered.reduce((sum, tr) => sum + (tr.durationMinutes ?? 0), 0),
     [filtered],
   );
 
   const locoModels = useMemo(() => {
     const models = new Set<string>();
-    for (const t of trips) {
-      if (t.locoModel) models.add(t.locoModel);
+    for (const tr of trips) {
+      if (tr.locoModel) models.add(tr.locoModel);
     }
     return Array.from(models).sort();
   }, [trips]);
-
-  // ── Handlers ────────────────────────────────────────────────────────────────
 
   async function handleExport() {
     setExporting(true);
@@ -434,10 +436,8 @@ export default function TripsScreen() {
     );
   }
 
-  // ── Render item ─────────────────────────────────────────────────────────────
-
   function renderItem({ item }: { item: LocalTrip }) {
-    const stripeColor = TRIP_TYPE_COLORS[item.tripType] ?? C.textMute;
+    const stripeColor = tripTypeColor(item.tripType, theme);
     const elec = computeElec(item);
     const extraParts: string[] = [];
     if (item.trainNumber) extraParts.push(`№${item.trainNumber}`);
@@ -449,7 +449,7 @@ export default function TripsScreen() {
 
     return (
       <TouchableOpacity
-        style={s.card}
+        style={[s.card, { backgroundColor: theme.card }]}
         onPress={() => router.push(`/trip/${item.id}`)}
         onLongPress={() => handleDeleteItem(item)}
         delayLongPress={500}
@@ -458,32 +458,32 @@ export default function TripsScreen() {
         <View style={[s.typeStripe, { backgroundColor: stripeColor }]} />
         <View style={s.cardContent}>
           <View style={s.cardHeader}>
-            <Text style={s.route} numberOfLines={1}>
+            <Text style={[s.route, { color: theme.text }]} numberOfLines={1}>
               {item.routeFrom} — {item.routeTo}
             </Text>
-            {!item.syncedAt && <View style={s.unsyncedDot} />}
+            {!item.syncedAt && <View style={[s.unsyncedDot, { backgroundColor: theme.warning }]} />}
           </View>
-          <Text style={s.meta}>
+          <Text style={[s.meta, { color: theme.textMute }]}>
             {formatDateRu(item.date)} · {item.appearanceTime ?? item.startTime ?? '—'}–{item.handoverTime ?? item.endTime ?? '—'}
           </Text>
           {extraParts.length > 0 && (
-            <Text style={s.metaExtra} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
+            <Text style={[s.metaExtra, { color: theme.textMute }]} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
           )}
           <View style={s.cardFooter}>
-            <Text style={s.chip}>{tripTypeLabel(item.tripType)}</Text>
+            <Text style={[s.chip, { backgroundColor: theme.surface, color: theme.primary }]}>
+              {tripTypeLabel(item.tripType)}
+            </Text>
             <View style={s.cardFooterRight}>
               {elec !== null && (
-                <Text style={s.elecText}>⚡ {elec.toFixed(0)} кВт·ч</Text>
+                <Text style={[s.elecText, { color: theme.success }]}>⚡ {elec.toFixed(0)} кВт·ч</Text>
               )}
-              <Text style={s.duration}>{fmtDur(item.durationMinutes ?? 0, t)}</Text>
+              <Text style={[s.duration, { color: theme.textDim }]}>{fmtDur(item.durationMinutes ?? 0, t)}</Text>
             </View>
           </View>
         </View>
       </TouchableOpacity>
     );
   }
-
-  // ── Empty text ──────────────────────────────────────────────────────────────
 
   const emptyText = useMemo(() => {
     if (search.trim()) return `${t.trips_emptySearch} «${search.trim()}»`;
@@ -492,33 +492,38 @@ export default function TripsScreen() {
     return t.trips_emptyPeriod;
   }, [search, hasActiveFilters, period, t]);
 
-  // ── JSX ─────────────────────────────────────────────────────────────────────
+  const chipBase = { backgroundColor: theme.card, borderColor: theme.border };
+  const chipActive = { backgroundColor: theme.primary, borderColor: theme.primary };
+  const chipTextBase = { color: theme.textMute };
+  const chipTextActive = { color: '#fff', fontWeight: '600' as const };
 
   return (
-    <View style={s.screen}>
+    <View style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}>
 
       {/* Header row */}
       <View style={s.topRow}>
-        <Text style={s.header}>{t.trips_title}</Text>
+        <Text style={[s.header, { color: theme.text }]}>{t.trips_title}</Text>
         <View style={s.topRowActions}>
           <TouchableOpacity
-            style={[s.filterBtn, hasModalFilters && s.filterBtnActive]}
+            style={[s.filterBtn, { borderColor: theme.border },
+              hasModalFilters && { borderColor: theme.primary, backgroundColor: theme.primaryDim }]}
             onPress={() => setFilterModalVisible(true)}
             activeOpacity={0.75}
           >
-            <Text style={[s.filterBtnText, hasModalFilters && s.filterBtnTextActive]}>
+            <Text style={[s.filterBtnText, { color: theme.textMute },
+              hasModalFilters && { color: theme.primary }]}>
               {hasModalFilters ? t.trips_filtersActive : t.trips_filters}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[s.exportBtn, exporting && { opacity: 0.5 }]}
+            style={[s.exportBtn, { borderColor: theme.border }, exporting && { opacity: 0.5 }]}
             onPress={handleExport}
             disabled={exporting}
             activeOpacity={0.75}
           >
             {exporting
-              ? <ActivityIndicator color={C.blue} size="small" />
-              : <Text style={s.exportBtnText}>CSV</Text>}
+              ? <ActivityIndicator color={theme.primary} size="small" />
+              : <Text style={[s.exportBtnText, { color: theme.textMute }]}>CSV</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -526,9 +531,11 @@ export default function TripsScreen() {
       {/* Search input */}
       <View style={s.searchRow}>
         <TextInput
-          style={s.searchInput}
+          style={[s.searchInput, {
+            backgroundColor: theme.card, color: theme.text, borderColor: theme.border,
+          }]}
           placeholder={t.trips_search}
-          placeholderTextColor={C.textMute}
+          placeholderTextColor={theme.textMute}
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
@@ -548,11 +555,11 @@ export default function TripsScreen() {
         {PERIOD_LABELS.map((p) => (
           <TouchableOpacity
             key={p.value}
-            style={[s.filterChip, period === p.value && s.filterChipActive]}
+            style={[s.filterChip, chipBase, period === p.value && chipActive]}
             onPress={() => setPeriod(p.value)}
             activeOpacity={0.75}
           >
-            <Text style={[s.filterChipText, period === p.value && s.filterChipTextActive]}>
+            <Text style={[s.filterChipText, chipTextBase, period === p.value && chipTextActive]}>
               {p.label}
             </Text>
           </TouchableOpacity>
@@ -567,22 +574,22 @@ export default function TripsScreen() {
         contentContainerStyle={s.chipRow}
       >
         <TouchableOpacity
-          style={[s.filterChip, tripTypeFilter === null && s.filterChipActive]}
+          style={[s.filterChip, chipBase, tripTypeFilter === null && chipActive]}
           onPress={() => setTripTypeFilter(null)}
           activeOpacity={0.75}
         >
-          <Text style={[s.filterChipText, tripTypeFilter === null && s.filterChipTextActive]}>
+          <Text style={[s.filterChipText, chipTextBase, tripTypeFilter === null && chipTextActive]}>
             {t.trips_allTypes}
           </Text>
         </TouchableOpacity>
         {TRIP_TYPES.map((tripT) => (
           <TouchableOpacity
             key={tripT}
-            style={[s.filterChip, tripTypeFilter === tripT && s.filterChipActive]}
+            style={[s.filterChip, chipBase, tripTypeFilter === tripT && chipActive]}
             onPress={() => setTripTypeFilter(tripTypeFilter === tripT ? null : tripT)}
             activeOpacity={0.75}
           >
-            <Text style={[s.filterChipText, tripTypeFilter === tripT && s.filterChipTextActive]}>
+            <Text style={[s.filterChipText, chipTextBase, tripTypeFilter === tripT && chipTextActive]}>
               {tripTypeLabel(tripT)}
             </Text>
           </TouchableOpacity>
@@ -598,22 +605,22 @@ export default function TripsScreen() {
           contentContainerStyle={s.chipRow}
         >
           <TouchableOpacity
-            style={[s.filterChip, locoFilter === null && s.filterChipActive]}
+            style={[s.filterChip, chipBase, locoFilter === null && chipActive]}
             onPress={() => setLocoFilter(null)}
             activeOpacity={0.75}
           >
-            <Text style={[s.filterChipText, locoFilter === null && s.filterChipTextActive]}>
+            <Text style={[s.filterChipText, chipTextBase, locoFilter === null && chipTextActive]}>
               {t.trips_allLocos}
             </Text>
           </TouchableOpacity>
           {locoModels.map((model) => (
             <TouchableOpacity
               key={model}
-              style={[s.filterChip, locoFilter === model && s.filterChipActive]}
+              style={[s.filterChip, chipBase, locoFilter === model && chipActive]}
               onPress={() => setLocoFilter(locoFilter === model ? null : model)}
               activeOpacity={0.75}
             >
-              <Text style={[s.filterChipText, locoFilter === model && s.filterChipTextActive]}>
+              <Text style={[s.filterChipText, chipTextBase, locoFilter === model && chipTextActive]}>
                 {model}
               </Text>
             </TouchableOpacity>
@@ -621,29 +628,37 @@ export default function TripsScreen() {
         </ScrollView>
       )}
 
-      {/* Toggle row: unsynced, multi-section, clear */}
+      {/* Toggle row */}
       <View style={s.toggleRow}>
         <TouchableOpacity
-          style={[s.toggleChip, unsyncedOnly && s.toggleChipActive]}
+          style={[s.toggleChip, { backgroundColor: theme.card, borderColor: theme.border },
+            unsyncedOnly && { backgroundColor: theme.warning, borderColor: theme.warning }]}
           onPress={() => setUnsyncedOnly((v) => !v)}
           activeOpacity={0.75}
         >
-          <Text style={[s.toggleChipText, unsyncedOnly && s.toggleChipTextActive]}>
+          <Text style={[s.toggleChipText, { color: theme.textMute },
+            unsyncedOnly && { color: theme.bg, fontWeight: '600' }]}>
             {t.trips_unsynced}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[s.toggleChip, multiSectionOnly && s.toggleChipActive]}
+          style={[s.toggleChip, { backgroundColor: theme.card, borderColor: theme.border },
+            multiSectionOnly && { backgroundColor: theme.warning, borderColor: theme.warning }]}
           onPress={() => setMultiSectionOnly((v) => !v)}
           activeOpacity={0.75}
         >
-          <Text style={[s.toggleChipText, multiSectionOnly && s.toggleChipTextActive]}>
+          <Text style={[s.toggleChipText, { color: theme.textMute },
+            multiSectionOnly && { color: theme.bg, fontWeight: '600' }]}>
             {t.trips_multiSection}
           </Text>
         </TouchableOpacity>
         {hasActiveFilters && (
-          <TouchableOpacity style={s.clearBtn} onPress={clearFilters} activeOpacity={0.75}>
-            <Text style={s.clearBtnText}>{t.trips_clear}</Text>
+          <TouchableOpacity
+            style={[s.clearBtn, { borderColor: theme.danger }]}
+            onPress={clearFilters}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.clearBtnText, { color: theme.danger }]}>{t.trips_clear}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -651,26 +666,26 @@ export default function TripsScreen() {
       {/* Summary row */}
       {filtered.length > 0 && (
         <View style={s.summary}>
-          <Text style={s.summaryText}>
+          <Text style={[s.summaryText, { color: theme.textDim }]}>
             {filtered.length} {pluralTrips(filtered.length, t)}
           </Text>
-          <Text style={s.summaryDot}>·</Text>
-          <Text style={s.summaryText}>{fmtDur(totalMinutes, t)}</Text>
+          <Text style={[s.summaryDot, { color: theme.border }]}>·</Text>
+          <Text style={[s.summaryText, { color: theme.textDim }]}>{fmtDur(totalMinutes, t)}</Text>
         </View>
       )}
 
       {/* List */}
       {isLoading ? (
-        <ActivityIndicator color={C.blue} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(t) => t.localId ?? t.id}
+          keyExtractor={(tr) => tr.localId ?? tr.id}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 100 }}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            <Text style={s.empty}>{emptyText}</Text>
+            <Text style={[s.empty, { color: theme.textMute }]}>{emptyText}</Text>
           }
         />
       )}
@@ -699,67 +714,51 @@ export default function TripsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg, padding: 16 },
-
   topRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginTop: 48, marginBottom: 10,
   },
-  header: { color: C.text, fontSize: 24, fontWeight: 'bold' },
+  header: { fontSize: 24, fontWeight: 'bold' },
   topRowActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   filterBtn: {
-    borderWidth: 1, borderColor: C.line, borderRadius: 8,
+    borderWidth: 1, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center',
   },
-  filterBtnActive: { borderColor: C.blue, backgroundColor: C.blueDim },
-  filterBtnText: { color: C.textMute, fontSize: 13, fontWeight: '600' },
-  filterBtnTextActive: { color: C.blue },
+  filterBtnText: { fontSize: 13, fontWeight: '600' },
   exportBtn: {
-    borderWidth: 1, borderColor: C.line, borderRadius: 8,
+    borderWidth: 1, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 6, minWidth: 44, alignItems: 'center',
   },
-  exportBtnText: { color: C.textMute, fontSize: 13, fontWeight: '600' },
+  exportBtnText: { fontSize: 13, fontWeight: '600' },
 
   searchRow: { marginBottom: 10 },
   searchInput: {
-    backgroundColor: C.card, color: C.text, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10, fontSize: 14,
-    borderWidth: 1, borderColor: C.line,
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 14, borderWidth: 1,
   },
 
   chipScrollView: { flexGrow: 0, marginBottom: 8 },
   chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
   filterChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
   },
-  filterChipActive: { backgroundColor: C.blue, borderColor: C.blue },
-  filterChipText: { color: C.textMute, fontSize: 13 },
-  filterChipTextActive: { color: '#fff', fontWeight: '600' },
+  filterChipText: { fontSize: 13 },
 
   toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' },
-  toggleChip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: C.card, borderWidth: 1, borderColor: C.line,
-  },
-  toggleChipActive: { backgroundColor: C.amber, borderColor: C.amber },
-  toggleChipText: { color: C.textMute, fontSize: 12 },
-  toggleChipTextActive: { color: C.bg, fontWeight: '600' },
-  clearBtn: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: C.danger,
-  },
-  clearBtnText: { color: C.danger, fontSize: 12 },
+  toggleChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  toggleChipText: { fontSize: 12 },
+  clearBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  clearBtnText: { fontSize: 12 },
 
   summary: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginBottom: 10, paddingHorizontal: 2,
   },
-  summaryText: { color: C.textDim, fontSize: 13 },
-  summaryDot: { color: C.line, fontSize: 13 },
+  summaryText: { fontSize: 13 },
+  summaryDot: { fontSize: 13 },
 
   card: {
-    backgroundColor: C.card, borderRadius: 14, marginBottom: 10,
+    borderRadius: 16, marginBottom: 10,
     flexDirection: 'row', overflow: 'hidden',
   },
   typeStripe: { width: 4 },
@@ -768,60 +767,33 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', gap: 8,
   },
-  route: { color: C.text, fontSize: 16, fontWeight: '600', flex: 1 },
-  unsyncedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.amber, flexShrink: 0 },
-  meta: { color: C.textMute, fontSize: 13, marginTop: 4 },
-  metaExtra: { color: C.textMute, fontSize: 12, marginTop: 3 },
+  route: { fontSize: 16, fontWeight: '600', flex: 1 },
+  unsyncedDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  meta: { fontSize: 13, marginTop: 4 },
+  metaExtra: { fontSize: 12, marginTop: 3 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   cardFooterRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  chip: {
-    backgroundColor: C.surface, color: C.blue, fontSize: 12,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
-  },
-  elecText: { color: C.green, fontSize: 12 },
-  duration: { color: C.textDim, fontSize: 16, fontWeight: '600' },
-  empty: { color: C.textMute, textAlign: 'center', marginTop: 60, fontSize: 16 },
+  chip: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  elecText: { fontSize: 12 },
+  duration: { fontSize: 16, fontWeight: '600' },
+  empty: { textAlign: 'center', marginTop: 60, fontSize: 16 },
 });
 
 // ─── Modal styles ─────────────────────────────────────────────────────────────
 
 const ms = StyleSheet.create({
-  overlay: {
-    flex: 1, justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  sheet: {
-    backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, paddingBottom: 36,
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: C.line,
-    alignSelf: 'center', marginBottom: 16,
-  },
-  title: { color: C.text, fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  label: { color: C.textDim, fontSize: 13, marginBottom: 6, marginTop: 12 },
-  input: {
-    backgroundColor: C.surface, color: C.text, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10, fontSize: 14,
-    borderWidth: 1, borderColor: C.line,
-  },
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  label: { fontSize: 13, marginBottom: 6, marginTop: 12 },
+  input: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, borderWidth: 1 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,
-  },
-  chipActive: { backgroundColor: C.blue, borderColor: C.blue },
-  chipText: { color: C.textMute, fontSize: 13 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  chipText: { fontSize: 13 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  resetBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: C.line, alignItems: 'center',
-  },
-  resetBtnText: { color: C.textDim, fontSize: 15, fontWeight: '600' },
-  applyBtn: {
-    flex: 2, paddingVertical: 12, borderRadius: 10,
-    backgroundColor: C.blue, alignItems: 'center',
-  },
+  resetBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  resetBtnText: { fontSize: 15, fontWeight: '600' },
+  applyBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   applyBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

@@ -8,6 +8,7 @@ import { authApi } from '@/services/api.service';
 import { useAuthStore } from '@/store/auth.store';
 import { LoginDtoSchema } from '@railcrew/contracts';
 import { useLang } from '@/i18n';
+import { useTheme } from '@/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { setAuth, setDemoMode } = useAuthStore();
   const { t } = useLang();
+  const { theme } = useTheme();
 
   async function handleLogin() {
     const result = LoginDtoSchema.safeParse({ email, password });
@@ -39,86 +41,89 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      style={{ flex: 1, backgroundColor: theme.bg }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-    <ScrollView
-      contentContainerStyle={s.container}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={s.title}>RailCrew</Text>
-      <Text style={s.subtitle}>{t.login_subtitle}</Text>
-      <Text style={s.apiHint} numberOfLines={1}>API: {apiUrl}</Text>
-
-      <TextInput
-        style={s.input}
-        placeholder="Email"
-        placeholderTextColor="#64748b"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={s.input}
-        placeholder={t.login_password}
-        placeholderTextColor="#64748b"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <TouchableOpacity style={s.btn} onPress={handleLogin} disabled={loading}>
-        <Text style={s.btnText}>{loading ? t.login_signingIn : t.login_signIn}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-        <Text style={s.link}>{t.login_noAccount}</Text>
-      </TouchableOpacity>
-
-      <View style={s.dividerRow}>
-        <View style={s.dividerLine} />
-        <Text style={s.dividerLabel}>{t.login_or}</Text>
-        <View style={s.dividerLine} />
-      </View>
-
-      <TouchableOpacity
-        style={s.demoBtn}
-        onPress={async () => {
-          await setDemoMode();
-          router.replace('/(tabs)');
-        }}
+      <ScrollView
+        contentContainerStyle={[s.container, { backgroundColor: theme.bg }]}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={s.demoBtnText}>{t.login_demo}</Text>
-      </TouchableOpacity>
-      <Text style={s.demoHint}>{t.login_demoHint}</Text>
-    </ScrollView>
+        <Text style={[s.title, { color: theme.text }]}>RailCrew</Text>
+        <Text style={[s.subtitle, { color: theme.textDim }]}>{t.login_subtitle}</Text>
+        <Text style={[s.apiHint, { color: theme.border }]} numberOfLines={1}>API: {apiUrl}</Text>
+
+        <TextInput
+          style={[s.input, { backgroundColor: theme.card, color: theme.text }]}
+          placeholder="Email"
+          placeholderTextColor={theme.textMute}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={[s.input, { backgroundColor: theme.card, color: theme.text }]}
+          placeholder={t.login_password}
+          placeholderTextColor={theme.textMute}
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: theme.primary }]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          <Text style={s.btnText}>{loading ? t.login_signingIn : t.login_signIn}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+          <Text style={[s.link, { color: theme.primary }]}>{t.login_noAccount}</Text>
+        </TouchableOpacity>
+
+        <View style={s.dividerRow}>
+          <View style={[s.dividerLine, { backgroundColor: theme.card }]} />
+          <Text style={[s.dividerLabel, { color: theme.border }]}>{t.login_or}</Text>
+          <View style={[s.dividerLine, { backgroundColor: theme.card }]} />
+        </View>
+
+        <TouchableOpacity
+          style={[s.demoBtn, { borderColor: theme.border }]}
+          onPress={async () => {
+            await setDemoMode();
+            router.replace('/(tabs)');
+          }}
+        >
+          <Text style={[s.demoBtnText, { color: theme.textMute }]}>{t.login_demo}</Text>
+        </TouchableOpacity>
+        <Text style={[s.demoHint, { color: theme.border }]}>{t.login_demoHint}</Text>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', padding: 24 },
-  title: { color: '#f1f5f9', fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 },
-  subtitle: { color: '#94a3b8', fontSize: 14, textAlign: 'center', marginBottom: 40 },
+  container: { flex: 1, justifyContent: 'center', padding: 24 },
+  title: { fontSize: 32, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 },
+  subtitle: { fontSize: 14, textAlign: 'center', marginBottom: 40 },
   input: {
-    backgroundColor: '#1e293b', color: '#f1f5f9', borderRadius: 10,
-    padding: 14, marginBottom: 12, fontSize: 16,
+    borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 16,
   },
   btn: {
-    backgroundColor: '#3b82f6', borderRadius: 10, padding: 16,
+    borderRadius: 10, padding: 16,
     alignItems: 'center', marginTop: 8, marginBottom: 16,
   },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  link: { color: '#3b82f6', textAlign: 'center', fontSize: 14 },
+  link: { textAlign: 'center', fontSize: 14 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 24, gap: 10 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#1e293b' },
-  dividerLabel: { color: '#334155', fontSize: 13 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerLabel: { fontSize: 13 },
   demoBtn: {
-    borderWidth: 1, borderColor: '#334155', borderRadius: 10,
+    borderWidth: 1, borderRadius: 10,
     padding: 14, alignItems: 'center',
   },
-  demoBtnText: { color: '#64748b', fontSize: 14 },
-  demoHint: { color: '#334155', fontSize: 12, textAlign: 'center', marginTop: 8 },
-  apiHint: { color: '#1e3a5f', fontSize: 10, textAlign: 'center', marginBottom: 24 },
+  demoBtnText: { fontSize: 14 },
+  demoHint: { fontSize: 12, textAlign: 'center', marginTop: 8 },
+  apiHint: { fontSize: 10, textAlign: 'center', marginBottom: 24 },
 });

@@ -309,4 +309,9 @@ export const kk: Strings = {
   detail_deleteError: 'Сапарды жою мүмкін болмады',
   detail_iosDone: 'Дайын',
   detail_notOptional: 'Міндетті емес',
+  settings_theme: 'Безендіру тақырыбы',
+  settings_themeBlue: 'Көк',
+  settings_themeGreen: 'Жасыл',
+  settings_themePurple: 'Күлгін',
+  settings_themeOrange: 'Қызғылт сары',
 };

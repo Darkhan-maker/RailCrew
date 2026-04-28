@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { LangProvider } from '@/i18n';
+import { ThemeProvider } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -64,9 +65,11 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <LangProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-        </LangProvider>
+        <ThemeProvider>
+          <LangProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </LangProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );

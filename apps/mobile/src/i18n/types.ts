@@ -321,4 +321,9 @@ export type Strings = {
   detail_deleteError: string;
   detail_iosDone: string;
   detail_notOptional: string;
+  settings_theme: string;
+  settings_themeBlue: string;
+  settings_themeGreen: string;
+  settings_themePurple: string;
+  settings_themeOrange: string;
 };

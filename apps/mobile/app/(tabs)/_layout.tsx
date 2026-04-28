@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLang } from '@/i18n';
+import { useTheme } from '@/theme';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -16,22 +17,23 @@ export default function TabsLayout() {
   const bottomPad = Math.max(insets.bottom, 8);
   const tabBarHeight = 52 + bottomPad;
   const { t } = useLang();
+  const { theme } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0B0F14',
-          borderTopColor: '#263245',
+          backgroundColor: theme.bg,
+          borderTopColor: theme.border,
           borderTopWidth: 1,
           paddingTop: 8,
           paddingBottom: bottomPad,
           height: tabBarHeight,
           elevation: 0,
         },
-        tabBarActiveTintColor: '#2472CC',
-        tabBarInactiveTintColor: '#5B6A7E',
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textMute,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500', marginTop: 2 },
       }}
     >
