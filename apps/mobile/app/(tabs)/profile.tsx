@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator,
+  ScrollView, Alert, ActivityIndicator, Clipboard,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/auth.store';
 import { useTripsStore } from '@/store/trips.store';
-import { http } from '@/services/api.service';
+import { http, telegramApi } from '@/services/api.service';
 import { backupStorage, tokenStorage } from '@/services/storage.service';
 import { UpdateProfileDtoSchema, UpdateProfileDto } from '@railcrew/contracts';
 import { useLang, pluralTrips } from '@/i18n';
@@ -36,6 +36,8 @@ export default function ProfileScreen() {
 
   const [backupBusy, setBackupBusy] = useState(false);
   const [restoreBusy, setRestoreBusy] = useState(false);
+  const [telegramCode, setTelegramCode] = useState<string | null>(null);
+  const [telegramBusy, setTelegramBusy] = useState(false);
 
   const initials = getInitials(profile?.firstName, profile?.lastName);
 
@@ -84,6 +86,24 @@ export default function ProfileScreen() {
       Alert.alert(t.common_error, t.profile_backupError);
     } finally {
       setBackupBusy(false);
+    }
+  }
+
+  async function handleGenerateTelegramCode() {
+    const token = await tokenStorage.get();
+    if (token === 'demo_mode_token') {
+      Alert.alert(t.profile_demoMode, t.profile_demoModeMsg);
+      return;
+    }
+    setTelegramBusy(true);
+    try {
+      const { code } = await telegramApi.generateCode();
+      setTelegramCode(code);
+      Clipboard.setString(code);
+    } catch {
+      Alert.alert(t.common_error, t.profile_telegramError);
+    } finally {
+      setTelegramBusy(false);
     }
   }
 
@@ -169,6 +189,30 @@ export default function ProfileScreen() {
           {saving
             ? <ActivityIndicator color="#fff" />
             : <Text style={s.btnText}>{t.profile_saveProfile}</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* Telegram */}
+      <View style={[s.card, { backgroundColor: theme.card }]}>
+        <Text style={[s.cardTitle, { color: theme.text }]}>{t.profile_telegram}</Text>
+        <Text style={[s.cardHint, { color: theme.textMute }]}>{t.profile_telegramHint}</Text>
+
+        {telegramCode ? (
+          <View style={[s.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[s.codeLabel, { color: theme.textDim }]}>{t.profile_telegramCodeLabel}</Text>
+            <Text style={[s.codeValue, { color: theme.primary }]}>{telegramCode}</Text>
+            <Text style={[s.codeInstr, { color: theme.textMute }]}>{t.profile_telegramInstructions}</Text>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: theme.primary }]}
+          onPress={handleGenerateTelegramCode}
+          disabled={telegramBusy}
+        >
+          {telegramBusy
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.btnText}>{t.profile_telegramGetCode}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -275,4 +319,11 @@ const s = StyleSheet.create({
   btnOutlineText: { fontSize: 15, fontWeight: '600' },
   logoutBtn: { padding: 16, alignItems: 'center' },
   logoutText: { fontSize: 15, fontWeight: '600' },
+  codeBox: {
+    borderRadius: 10, borderWidth: 1,
+    padding: 14, marginBottom: 10, alignItems: 'center',
+  },
+  codeLabel: { fontSize: 12, marginBottom: 6 },
+  codeValue: { fontSize: 32, fontWeight: '700', letterSpacing: 4, marginBottom: 6 },
+  codeInstr: { fontSize: 12, textAlign: 'center' },
 });

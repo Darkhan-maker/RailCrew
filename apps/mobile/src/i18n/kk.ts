@@ -244,6 +244,13 @@ export const kk: Strings = {
   profile_backupUnavailableTitle: 'Қолжетімсіз',
   profile_restoredPrefix: 'Қалпына келтірілді: ',
   profile_restoredSuffix: ' үлгі',
+  profile_telegram: 'Telegram-бот',
+  profile_telegramHint: 'Telegram арқылы тікелей сапарлар жасаңыз',
+  profile_telegramLinked: 'Аккаунт байланыстырылған',
+  profile_telegramGetCode: 'Код алу',
+  profile_telegramCodeLabel: 'Байланыстыру коды:',
+  profile_telegramInstructions: 'Бұл кодты @RailCrewBot ботына /link командасымен жіберіңіз',
+  profile_telegramError: 'Код алу мүмкін болмады',
 
   login_subtitle: 'Сапарлар мен жалақыны есепке алу',
   login_password: 'Құпиясөз',

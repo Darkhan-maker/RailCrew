@@ -31,12 +31,14 @@ enum TripStatus {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(DRIVER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  passwordHash       String
+  role               UserRole @default(DRIVER)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  telegramId         String?  @unique
+  telegramLinkCode   String?
 
   profile     Profile?
   trips       Trip[]

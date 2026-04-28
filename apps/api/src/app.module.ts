@@ -7,6 +7,7 @@ import { TripsModule } from './trips/trips.module';
 import { SalaryModule } from './salary/salary.module';
 import { SummaryModule } from './summary/summary.module';
 import { ExportModule } from './export/export.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ExportModule } from './export/export.module';
     SalaryModule,
     SummaryModule,
     ExportModule,
+    TelegramModule,
   ],
 })
 export class AppModule {}

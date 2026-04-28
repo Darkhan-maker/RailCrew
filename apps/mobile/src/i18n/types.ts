@@ -253,6 +253,13 @@ export type Strings = {
   profile_backupUnavailableTitle: string;
   profile_restoredPrefix: string;
   profile_restoredSuffix: string;
+  profile_telegram: string;
+  profile_telegramHint: string;
+  profile_telegramLinked: string;
+  profile_telegramGetCode: string;
+  profile_telegramCodeLabel: string;
+  profile_telegramInstructions: string;
+  profile_telegramError: string;
 
   // Login
   login_subtitle: string;

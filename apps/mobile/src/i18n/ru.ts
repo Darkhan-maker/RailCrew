@@ -244,6 +244,13 @@ export const ru: Strings = {
   profile_backupUnavailableTitle: 'Недоступно',
   profile_restoredPrefix: 'Восстановлено: ',
   profile_restoredSuffix: ' шаблонов',
+  profile_telegram: 'Telegram-бот',
+  profile_telegramHint: 'Создавай поездки прямо из Telegram',
+  profile_telegramLinked: 'Аккаунт привязан',
+  profile_telegramGetCode: 'Получить код',
+  profile_telegramCodeLabel: 'Твой код для привязки:',
+  profile_telegramInstructions: 'Отправь этот код боту @RailCrewBot командой /link',
+  profile_telegramError: 'Не удалось получить код',
 
   login_subtitle: 'Учет поездок и зарплаты',
   login_password: 'Пароль',

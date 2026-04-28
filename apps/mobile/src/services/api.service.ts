@@ -66,6 +66,12 @@ export const exportApi = {
     http.get<ArrayBuffer>(`/export/trips/${id}/pdf`, { responseType: 'arraybuffer' }).then((r) => r.data),
 };
 
+// Telegram
+export const telegramApi = {
+  generateCode: () =>
+    http.post<{ code: string }>('/telegram/generate-code').then((r) => r.data),
+};
+
 // Salary rules
 export const salaryApi = {
   create: (dto: CreateSalaryRuleDto) =>
