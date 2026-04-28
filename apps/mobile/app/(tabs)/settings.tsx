@@ -353,12 +353,28 @@ export default function SettingsScreen() {
           onChange={(v) => updateSalary('ratePerHour', v)} placeholder="2500" theme={theme} />
         <NumericField label={t.settings_tripBonus} value={salary.tripBonus}
           onChange={(v) => updateSalary('tripBonus', v)} placeholder="500" theme={theme} />
+        <NumericField label={t.settings_tripBonusPerHour} value={salary.tripBonusPerHour}
+          onChange={(v) => updateSalary('tripBonusPerHour', v)} placeholder="0" theme={theme} />
         <NumericField label={t.settings_nightCoeff} value={salary.nightCoefficient}
           onChange={(v) => updateSalary('nightCoefficient', v)} placeholder="1.4" decimal theme={theme} />
+        <NumericField label={t.settings_holidayCoeff} value={salary.holidayCoefficient}
+          onChange={(v) => updateSalary('holidayCoefficient', v)} placeholder="2" decimal theme={theme} />
         <NumericField label={t.settings_overtimeCoeff} value={salary.overtimeCoefficient}
           onChange={(v) => updateSalary('overtimeCoefficient', v)} placeholder="1.5" decimal theme={theme} />
         <NumericField label={t.settings_overtimeThreshold} value={salary.monthlyHoursThreshold}
           onChange={(v) => updateSalary('monthlyHoursThreshold', v)} placeholder="176" theme={theme} />
+        <NumericField label={t.settings_harmfulness} value={salary.harmfulnessPercent}
+          onChange={(v) => updateSalary('harmfulnessPercent', v)} placeholder="0" decimal theme={theme} />
+        <NumericField label={t.settings_classBonus} value={salary.classPercent}
+          onChange={(v) => updateSalary('classPercent', v)} placeholder="0" decimal theme={theme} />
+        <NumericField label={t.settings_zonalBonus} value={salary.zonalPercent}
+          onChange={(v) => updateSalary('zonalPercent', v)} placeholder="0" decimal theme={theme} />
+        <NumericField label={t.settings_regionalCoeff} value={salary.regionalCoefficient}
+          onChange={(v) => updateSalary('regionalCoefficient', v)} placeholder="1" decimal theme={theme} />
+        <NumericField label={t.settings_union} value={salary.unionPercent}
+          onChange={(v) => updateSalary('unionPercent', v)} placeholder="1" decimal theme={theme} />
+        <NumericField label={t.settings_tax} value={salary.taxPercent}
+          onChange={(v) => updateSalary('taxPercent', v)} placeholder="13" decimal theme={theme} />
       </View>
 
       {/* ─── Сохранить ────────────────────────────────────────────────────── */}

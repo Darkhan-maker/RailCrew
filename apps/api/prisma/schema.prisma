@@ -135,6 +135,16 @@ model SalaryRule {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
+  // Extended salary fields
+  harmfulnessPercent    Float?    @default(0)
+  classPercent          Float?    @default(0)
+  zonalPercent          Float?    @default(0)
+  regionalCoefficient   Float?    @default(1)
+  unionPercent          Float?    @default(1)
+  taxPercent            Float?    @default(13)
+  holidayCoefficient    Float?    @default(2)
+  tripBonusPerHour      Float?    @default(0)
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("salary_rules")

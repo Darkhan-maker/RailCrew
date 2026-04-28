@@ -19,6 +19,7 @@ export type LocalTripExtra = {
   meterEnd?: number;        // backward-compat alias for sectionMeters[0].end
   sectionMeters?: SectionMeter[];
   nightMinutes?: number;
+  holidayMinutes?: number;
 };
 
 export type LocalTrip = Trip & LocalTripExtra;
@@ -81,6 +82,14 @@ export type LocalSalaryRule = {
   nightCoefficient: number;
   overtimeCoefficient: number;
   monthlyHoursThreshold: number;
+  harmfulnessPercent: number;
+  classPercent: number;
+  zonalPercent: number;
+  regionalCoefficient: number;
+  unionPercent: number;
+  taxPercent: number;
+  holidayCoefficient: number;
+  tripBonusPerHour: number;
 };
 
 const DEFAULT_SALARY_RULE: LocalSalaryRule = {
@@ -89,6 +98,14 @@ const DEFAULT_SALARY_RULE: LocalSalaryRule = {
   nightCoefficient: 1.4,
   overtimeCoefficient: 1.5,
   monthlyHoursThreshold: 176,
+  harmfulnessPercent: 0,
+  classPercent: 0,
+  zonalPercent: 0,
+  regionalCoefficient: 1,
+  unionPercent: 1,
+  taxPercent: 13,
+  holidayCoefficient: 2,
+  tripBonusPerHour: 0,
 };
 
 export const localSalaryStorage = {

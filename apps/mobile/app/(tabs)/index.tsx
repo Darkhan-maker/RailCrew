@@ -68,23 +68,61 @@ function calcSalary(
   rule: LocalSalaryRule,
   totalMinutes: number,
   nightMinutes: number,
+  holidayMinutes: number,
   tripCount: number,
   monthlyNorm: number,
 ) {
+  const rate = rule.ratePerHour;
   const totalHours = totalMinutes / 60;
   const nightHours = nightMinutes / 60;
+  const holidayHours = holidayMinutes / 60;
   const threshold = rule.monthlyHoursThreshold || monthlyNorm;
   const overtimeHours = Math.max(0, totalHours - threshold);
   const normalHours = totalHours - overtimeHours;
-  const regularHours = Math.max(0, normalHours - nightHours);
+  const regularHours = Math.max(0, normalHours - nightHours - holidayHours);
 
-  const basePay = Math.max(0, Math.round(regularHours * rule.ratePerHour));
-  const nightPay = Math.round(nightHours * rule.ratePerHour * (rule.nightCoefficient || 1.4));
-  const overtimePay = Math.round(overtimeHours * rule.ratePerHour * (rule.overtimeCoefficient || 1.5));
-  const bonusPay = Math.round(tripCount * rule.tripBonus);
-  const total = basePay + nightPay + overtimePay + bonusPay;
+  // Base components
+  const tariffPay = Math.max(0, Math.round(regularHours * rate));
+  const nightPay = Math.round(nightHours * rate * (rule.nightCoefficient || 1.4));
+  const holidayPay = Math.round(holidayHours * rate * (rule.holidayCoefficient || 2));
+  const overtimePay = Math.round(overtimeHours * rate * (rule.overtimeCoefficient || 1.5));
+  const tripBonusPay = Math.round(
+    tripCount * (rule.tripBonus || 0) + totalHours * (rule.tripBonusPerHour || 0),
+  );
 
-  return { basePay, nightPay, overtimePay, bonusPay, total, nightHours, overtimeHours, regularHours };
+  // Percentage addons (applied to tariffPay base)
+  const harmfulnessPay = Math.round(tariffPay * (rule.harmfulnessPercent || 0) / 100);
+  const classPay = Math.round(tariffPay * (rule.classPercent || 0) / 100);
+  const zonalPay = Math.round(tariffPay * (rule.zonalPercent || 0) / 100);
+
+  // Subtotal before regional coefficient
+  const subtotalBeforeRK =
+    tariffPay + nightPay + holidayPay + overtimePay + tripBonusPay +
+    harmfulnessPay + classPay + zonalPay;
+
+  // Apply regional coefficient
+  const rk = rule.regionalCoefficient || 1;
+  const gross = Math.round(subtotalBeforeRK * rk);
+
+  // Deductions
+  const unionDeduction = Math.round(gross * (rule.unionPercent || 0) / 100);
+  const taxDeduction = Math.round((gross - unionDeduction) * (rule.taxPercent || 13) / 100);
+  const netPay = gross - unionDeduction - taxDeduction;
+
+  // Legacy total for hero card (gross)
+  const total = gross;
+  // Legacy aliases for existing breakdown display
+  const basePay = tariffPay;
+  const bonusPay = tripBonusPay;
+
+  return {
+    tariffPay, nightPay, holidayPay, overtimePay, tripBonusPay,
+    harmfulnessPay, classPay, zonalPay,
+    subtotalBeforeRK, gross, unionDeduction, taxDeduction, netPay,
+    nightHours, holidayHours, overtimeHours, regularHours,
+    // legacy aliases
+    basePay, bonusPay, total,
+  };
 }
 
 export default function DashboardScreen() {
@@ -136,9 +174,17 @@ export default function DashboardScreen() {
     [filtered],
   );
 
+  const totalHolidayMinutes = useMemo(
+    () => filtered.reduce((sum, tr) => sum + (tr.holidayMinutes ?? 0), 0),
+    [filtered],
+  );
+
   const salary = useMemo(() => {
     if (!salaryRule || salaryRule.ratePerHour === 0) return null;
-    return calcSalary(salaryRule, totalMinutes, totalNightMinutes, filtered.length, settings?.monthlyHoursNorm ?? 176);
+    return calcSalary(
+      salaryRule, totalMinutes, totalNightMinutes, totalHolidayMinutes,
+      filtered.length, settings?.monthlyHoursNorm ?? 176,
+    );
   }, [salaryRule, totalMinutes, totalNightMinutes, filtered.length, settings?.monthlyHoursNorm]);
 
   const normPct = useMemo(() => {
@@ -309,7 +355,7 @@ export default function DashboardScreen() {
       </View>
 
       {/* Hero salary card */}
-      {salary && salary.total > 0 ? (
+      {salary && salary.netPay > 0 ? (
         <HeroSalaryCard salary={salary} periodLabel={getPeriodLabel(period)} />
       ) : (
         <View style={[s.card, { backgroundColor: theme.card }]}>
@@ -336,23 +382,9 @@ export default function DashboardScreen() {
         <Text style={[s.empty, { color: theme.textMute }]}>{t.dashboard_empty}</Text>
       ) : (
         <>
-          {/* Salary breakdown */}
+          {/* Детализация зарплаты */}
           {salary && (
-            <View style={[s.card, { backgroundColor: theme.card }]}>
-              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_breakdown}</Text>
-              <BreakdownRow color={theme.primary} label={`${t.dashboard_base} (${Math.round(salary.regularHours)} ${t.hour_abbr})`} amount={salary.basePay} />
-              {salary.nightPay > 0 && (
-                <BreakdownRow color="#8B5CF6" label={`${t.dashboard_night} (${Math.round(salary.nightHours)} ${t.hour_abbr})`} amount={salary.nightPay} />
-              )}
-              {salary.overtimePay > 0 && (
-                <BreakdownRow color={theme.warning} label={`${t.dashboard_overtime} (${Math.round(salary.overtimeHours)} ${t.hour_abbr})`} amount={salary.overtimePay} />
-              )}
-              {salary.bonusPay > 0 && (
-                <BreakdownRow color={theme.success} label={t.dashboard_bonuses} amount={salary.bonusPay} />
-              )}
-              <View style={[s.divider, { backgroundColor: theme.border }]} />
-              <BreakdownRow color={theme.primary} label={t.dashboard_total} amount={salary.total} highlight />
-            </View>
+            <SalaryDetailCard salary={salary} />
           )}
 
           {/* Recent trips */}
@@ -477,6 +509,117 @@ export default function DashboardScreen() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+function SalaryDetailCard({ salary }: { salary: ReturnType<typeof calcSalary> }) {
+  const { t } = useLang();
+  const { theme } = useTheme();
+
+  const fmt = (n: number) => Math.round(n).toLocaleString() + ' ₸';
+  const fmtH = (h: number) => `${Math.round(h * 10) / 10} ${t.hour_abbr}`;
+
+  function DetailRow({
+    color, label, sub, amount, deduction, highlight,
+  }: {
+    color?: string;
+    label: string;
+    sub?: string;
+    amount: number;
+    deduction?: boolean;
+    highlight?: boolean;
+  }) {
+    const amountColor = deduction ? theme.danger : highlight ? theme.primary : theme.text;
+    const sign = deduction ? '−' : '';
+    return (
+      <View style={sd.row}>
+        {color ? <View style={[sd.dot, { backgroundColor: color }]} /> : <View style={sd.dotEmpty} />}
+        <View style={{ flex: 1 }}>
+          <Text style={[sd.label, { color: highlight ? theme.text : theme.textDim }, highlight && { fontWeight: '600' }]}>
+            {label}
+          </Text>
+          {sub ? <Text style={[sd.sub, { color: theme.textMute }]}>{sub}</Text> : null}
+        </View>
+        <Text style={[sd.amount, { color: amountColor }, highlight && { fontSize: 16, fontWeight: '700' }]}>
+          {sign}{fmt(Math.abs(amount))}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[s.card, { backgroundColor: theme.card }]}>
+      <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_salaryDetail}</Text>
+
+      {/* Начисления */}
+      <DetailRow color={theme.primary} label={t.dashboard_tariff}
+        sub={fmtH(salary.regularHours)} amount={salary.tariffPay} />
+      {salary.nightPay > 0 && (
+        <DetailRow color="#8B5CF6" label={t.dashboard_nightAddon}
+          sub={fmtH(salary.nightHours)} amount={salary.nightPay} />
+      )}
+      {salary.holidayPay > 0 && (
+        <DetailRow color={theme.warning} label={t.dashboard_holidayAddon}
+          sub={fmtH(salary.holidayHours)} amount={salary.holidayPay} />
+      )}
+      {salary.overtimePay > 0 && (
+        <DetailRow color={theme.warning} label={t.dashboard_overtimeAddon}
+          sub={fmtH(salary.overtimeHours)} amount={salary.overtimePay} />
+      )}
+      {salary.tripBonusPay > 0 && (
+        <DetailRow color={theme.success} label={t.dashboard_tripBonuses} amount={salary.tripBonusPay} />
+      )}
+      {salary.harmfulnessPay > 0 && (
+        <DetailRow color="#F97316" label={t.dashboard_harmfulness} amount={salary.harmfulnessPay} />
+      )}
+      {salary.classPay > 0 && (
+        <DetailRow color="#06B6D4" label={t.dashboard_classBonus} amount={salary.classPay} />
+      )}
+      {salary.zonalPay > 0 && (
+        <DetailRow color="#84CC16" label={t.dashboard_zonalBonus} amount={salary.zonalPay} />
+      )}
+
+      {/* Районный коэффициент */}
+      <View style={[sd.divider, { backgroundColor: theme.border }]} />
+      <DetailRow label={t.dashboard_regionalCoeff}
+        sub={`× ${salary.gross > 0 ? (salary.gross / Math.max(salary.subtotalBeforeRK, 1)).toFixed(2) : '1.00'}`}
+        amount={salary.gross - salary.subtotalBeforeRK} />
+
+      {/* Подытог (брутто) */}
+      <View style={[sd.divider, { backgroundColor: theme.border }]} />
+      <DetailRow label={t.dashboard_subtotal} amount={salary.gross} highlight />
+
+      {/* Вычеты */}
+      {salary.unionDeduction > 0 && (
+        <DetailRow label={t.dashboard_union} amount={salary.unionDeduction} deduction />
+      )}
+      {salary.taxDeduction > 0 && (
+        <DetailRow label={t.dashboard_ndfl} amount={salary.taxDeduction} deduction />
+      )}
+
+      {/* Итого на руки */}
+      <View style={[sd.divider, { backgroundColor: theme.border }]} />
+      <View style={[sd.netRow, { backgroundColor: theme.primaryDim }]}>
+        <Text style={[sd.netLabel, { color: theme.text }]}>{t.dashboard_netPay}</Text>
+        <Text style={[sd.netAmount, { color: theme.primary }]}>{fmt(salary.netPay)}</Text>
+      </View>
+    </View>
+  );
+}
+
+const sd = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10, flexShrink: 0 },
+  dotEmpty: { width: 8, marginRight: 10 },
+  label: { fontSize: 14 },
+  sub: { fontSize: 11, marginTop: 1 },
+  amount: { fontSize: 14, fontWeight: '600', fontFamily: 'monospace', marginLeft: 8 },
+  divider: { height: 1, marginVertical: 8 },
+  netRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginTop: 4,
+  },
+  netLabel: { fontSize: 15, fontWeight: '600' },
+  netAmount: { fontSize: 22, fontWeight: '700', fontFamily: 'monospace' },
+});
+
 function HeroSalaryCard({
   salary,
   periodLabel,
@@ -486,8 +629,8 @@ function HeroSalaryCard({
 }) {
   const { t } = useLang();
   const { theme } = useTheme();
-  const { basePay, nightPay, overtimePay, bonusPay, total } = salary;
-  const safeTotal = Math.max(total, 1);
+  const { netPay, gross, tariffPay, nightPay, overtimePay, tripBonusPay } = salary;
+  const safeGross = Math.max(gross, 1);
 
   return (
     <View style={[s.heroCard, { backgroundColor: theme.primaryDark, borderTopColor: theme.primary }]}>
@@ -495,21 +638,22 @@ function HeroSalaryCard({
       <View style={[StyleSheet.absoluteFill, s.heroGlowLeft, { backgroundColor: theme.primary }]} />
       <View style={[StyleSheet.absoluteFill, s.heroGlowRight, { backgroundColor: theme.primaryDark }]} />
 
-      <Text style={[s.cardLabel, { color: '#ffffff88', zIndex: 1 }]}>{t.dashboard_salary} · {periodLabel}</Text>
-      <Text style={[s.heroAmount, { zIndex: 1 }]}>{total.toLocaleString()} ₸</Text>
+      <Text style={[s.cardLabel, { color: '#ffffff88', zIndex: 1 }]}>{t.dashboard_netPay} · {periodLabel}</Text>
+      <Text style={[s.heroAmount, { zIndex: 1 }]}>{netPay.toLocaleString()} ₸</Text>
+      <Text style={[s.heroGross, { zIndex: 1 }]}>{t.dashboard_subtotal}: {gross.toLocaleString()} ₸</Text>
 
       <View style={[s.stackedBar, { zIndex: 1 }]}>
-        {basePay > 0 && <View style={{ flex: basePay / safeTotal, backgroundColor: '#ffffff66' }} />}
-        {nightPay > 0 && <View style={{ flex: nightPay / safeTotal, backgroundColor: '#8B5CF666' }} />}
-        {overtimePay > 0 && <View style={{ flex: overtimePay / safeTotal, backgroundColor: '#F59E0B99' }} />}
-        {bonusPay > 0 && <View style={{ flex: bonusPay / safeTotal, backgroundColor: '#10B98199' }} />}
+        {tariffPay > 0 && <View style={{ flex: tariffPay / safeGross, backgroundColor: '#ffffff66' }} />}
+        {nightPay > 0 && <View style={{ flex: nightPay / safeGross, backgroundColor: '#8B5CF666' }} />}
+        {overtimePay > 0 && <View style={{ flex: overtimePay / safeGross, backgroundColor: '#F59E0B99' }} />}
+        {tripBonusPay > 0 && <View style={{ flex: tripBonusPay / safeGross, backgroundColor: '#10B98199' }} />}
       </View>
 
       <View style={[s.legendRow, { zIndex: 1 }]}>
-        {basePay > 0 && <LegendDot color="#ffffff99" label={t.dashboard_base} />}
-        {nightPay > 0 && <LegendDot color="#8B5CF6cc" label={t.dashboard_night} />}
-        {overtimePay > 0 && <LegendDot color="#F59E0Bcc" label={t.dashboard_overtime} />}
-        {bonusPay > 0 && <LegendDot color="#10B981cc" label={t.dashboard_bonuses} />}
+        {tariffPay > 0 && <LegendDot color="#ffffff99" label={t.dashboard_tariff} />}
+        {nightPay > 0 && <LegendDot color="#8B5CF6cc" label={t.dashboard_nightAddon} />}
+        {overtimePay > 0 && <LegendDot color="#F59E0Bcc" label={t.dashboard_overtimeAddon} />}
+        {tripBonusPay > 0 && <LegendDot color="#10B981cc" label={t.dashboard_tripBonuses} />}
       </View>
     </View>
   );
@@ -651,7 +795,10 @@ const s = StyleSheet.create({
   },
   heroAmount: {
     color: '#fff', fontSize: 38, fontWeight: '700',
-    fontFamily: 'monospace', marginBottom: 16,
+    fontFamily: 'monospace', marginBottom: 4,
+  },
+  heroGross: {
+    color: '#ffffff88', fontSize: 13, marginBottom: 14,
   },
   stackedBar: {
     height: 6, flexDirection: 'row', borderRadius: 3, overflow: 'hidden', marginBottom: 12,

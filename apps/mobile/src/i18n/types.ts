@@ -68,6 +68,20 @@ export type Strings = {
   dashboard_exportError: string;
   dashboard_localDot: string;
   dashboard_exportTitle: string;
+  dashboard_salaryDetail: string;
+  dashboard_tariff: string;
+  dashboard_nightAddon: string;
+  dashboard_holidayAddon: string;
+  dashboard_overtimeAddon: string;
+  dashboard_tripBonuses: string;
+  dashboard_harmfulness: string;
+  dashboard_classBonus: string;
+  dashboard_zonalBonus: string;
+  dashboard_regionalCoeff: string;
+  dashboard_subtotal: string;
+  dashboard_union: string;
+  dashboard_ndfl: string;
+  dashboard_netPay: string;
 
   // Trips list
   trips_title: string;
@@ -194,6 +208,14 @@ export type Strings = {
   settings_nightCoeff: string;
   settings_overtimeCoeff: string;
   settings_overtimeThreshold: string;
+  settings_harmfulness: string;
+  settings_classBonus: string;
+  settings_zonalBonus: string;
+  settings_regionalCoeff: string;
+  settings_union: string;
+  settings_tax: string;
+  settings_holidayCoeff: string;
+  settings_tripBonusPerHour: string;
   settings_saveAll: string;
   settings_errRate: string;
   settings_errNorm: string;
