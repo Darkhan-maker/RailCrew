@@ -461,7 +461,7 @@ export default function TripsScreen() {
 
     return (
       <TouchableOpacity
-        style={[s.card, { backgroundColor: theme.card }]}
+        style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}
         onPress={() => router.push(`/trip/${item.id}`)}
         onLongPress={() => handleDeleteItem(item)}
         delayLongPress={500}
@@ -784,7 +784,7 @@ const s = StyleSheet.create({
   card: {
     borderRadius: 16, marginBottom: 10,
     flexDirection: 'row', overflow: 'hidden',
-    borderWidth: 1, borderColor: 'transparent',
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },

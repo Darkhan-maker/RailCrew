@@ -362,7 +362,7 @@ export default function DashboardScreen() {
       {salary && salary.netPay > 0 ? (
         <HeroSalaryCard salary={salary} periodLabel={getPeriodLabel(period)} />
       ) : (
-        <View style={[s.card, { backgroundColor: theme.card }]}>
+        <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_salary} · {getPeriodLabel(period)}</Text>
           <Text style={[s.placeholder, { color: theme.textMute }]}>
             {!salaryRule || salaryRule.ratePerHour === 0
@@ -392,7 +392,7 @@ export default function DashboardScreen() {
           )}
 
           {/* Recent trips */}
-          <View style={[s.card, { backgroundColor: theme.card }]}>
+          <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_recentTrips}</Text>
             {filtered.slice(0, 3).map((tr, i) => (
               <TripRow
@@ -414,7 +414,7 @@ export default function DashboardScreen() {
 
           {/* Night hours */}
           {settings?.trackNightHours && totalNightMinutes > 0 && (
-            <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderLeftColor: '#8B5CF6' }]}>
+            <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderColor: theme.border, borderLeftColor: '#8B5CF6' }]}>
               <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_nightHours}</Text>
               <Text style={[s.monoLarge, { color: '#8B5CF6' }]}>{formatDuration(totalNightMinutes)}</Text>
             </View>
@@ -422,7 +422,7 @@ export default function DashboardScreen() {
 
           {/* Work cycle */}
           {cycleStats.cycleCount > 0 && (
-            <View style={[s.card, { backgroundColor: theme.card }]}>
+            <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[s.cardLabel, { color: theme.textMute }]}>
                 {t.dashboard_workCycle} · {cycleStats.cycleCount} {pluralTrips(cycleStats.cycleCount, t)}
               </Text>
@@ -443,7 +443,7 @@ export default function DashboardScreen() {
 
           {/* Electricity */}
           {elecStats !== null && (
-            <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderLeftColor: theme.success }]}>
+            <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderColor: theme.border, borderLeftColor: theme.success }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <Zap size={14} color={theme.success} />
                 <Text style={[s.cardLabel, { color: theme.textMute, marginBottom: 0 }]}>{t.dashboard_electricity}</Text>
@@ -465,7 +465,7 @@ export default function DashboardScreen() {
 
           {/* Trip types */}
           {typeStats.length > 0 && (
-            <View style={[s.card, { backgroundColor: theme.card }]}>
+            <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_byType}</Text>
               {typeStats.map(([type, count]) => (
                 <View key={type} style={s.metricRow}>
@@ -481,7 +481,7 @@ export default function DashboardScreen() {
 
           {/* Locos */}
           {locoStats.length > 0 && (
-            <View style={[s.card, { backgroundColor: theme.card }]}>
+            <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_locos}</Text>
               {locoStats.map((l, i) => (
                 <View key={i} style={s.metricRow}>
@@ -496,7 +496,7 @@ export default function DashboardScreen() {
 
           {/* Routes */}
           {routeStats.length > 0 && (
-            <View style={[s.card, { backgroundColor: theme.card }]}>
+            <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_routes}</Text>
               {routeStats.map((r, i) => (
                 <View key={i} style={{ marginBottom: 10 }}>
@@ -552,7 +552,7 @@ function SalaryDetailCard({ salary }: { salary: ReturnType<typeof calcSalary> })
   }
 
   return (
-    <View style={[s.card, { backgroundColor: theme.card }]}>
+    <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_salaryDetail}</Text>
 
       {/* Начисления */}
@@ -646,7 +646,10 @@ function HeroSalaryCard({
       <View style={[StyleSheet.absoluteFill, s.heroGlowRight, { backgroundColor: theme.primaryDark }]} />
 
       <Text style={[s.cardLabel, { color: '#ffffff88', zIndex: 1 }]}>{t.dashboard_netPay} · {periodLabel}</Text>
-      <Text style={[s.heroAmount, { zIndex: 1 }]}>{netPay.toLocaleString()} ₸</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 1 }}>
+        <Wallet size={28} color="rgba(255,255,255,0.7)" />
+        <Text style={s.heroAmount}>{netPay.toLocaleString()} ₸</Text>
+      </View>
       <Text style={[s.heroGross, { zIndex: 1 }]}>{t.dashboard_subtotal}: {gross.toLocaleString()} ₸</Text>
 
       <View style={[s.stackedBar, { zIndex: 1 }]}>
@@ -783,7 +786,7 @@ const s = StyleSheet.create({
 
   card: {
     borderRadius: 16, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: 'transparent',
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },

@@ -172,7 +172,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* User info */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.email, { color: theme.text }]}>{user?.email}</Text>
         <Text style={[s.role, { color: theme.textDim }]}>
           {user?.role === 'DRIVER' ? t.profile_driver : t.profile_assistant}
@@ -180,7 +180,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Profile fields */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Field label={t.profile_firstName} value={firstName} onChange={setFirstName} theme={theme} />
         <Field label={t.profile_lastName} value={lastName} onChange={setLastName} theme={theme} />
         <Field label={t.profile_employeeId} value={employeeId} onChange={setEmployeeId} theme={theme} />
@@ -197,7 +197,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Telegram */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.profile_telegram}</Text>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.profile_telegramHint}</Text>
 
@@ -221,7 +221,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Backup */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.profile_backup}</Text>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.profile_backupHint}</Text>
 
@@ -304,7 +304,7 @@ const s = StyleSheet.create({
 
   card: {
     borderRadius: 16, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: 'transparent',
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },

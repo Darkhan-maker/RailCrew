@@ -1,16 +1,28 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, Switch, ActivityIndicator,
+  ScrollView, Alert, Switch, ActivityIndicator, Clipboard,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import { format } from 'date-fns';
 import {
   localSettingsStorage, LocalSettings,
   localSalaryStorage, LocalSalaryRule,
+  backupStorage, tokenStorage,
 } from '@/services/storage.service';
 import { useAuthStore } from '@/store/auth.store';
-import { useLang, Lang } from '@/i18n';
+import { useTripsStore } from '@/store/trips.store';
+import { http, telegramApi } from '@/services/api.service';
+import { UpdateProfileDtoSchema, UpdateProfileDto } from '@railcrew/contracts';
+import { useLang, Lang, pluralTrips } from '@/i18n';
 import { useTheme, ThemeKey, THEMES } from '@/theme';
-import { Settings as SettingsIcon, Palette, Calculator, Send, Cloud, Info, User } from 'lucide-react-native';
+import {
+  Settings as SettingsIcon, Palette, Calculator, Send, Cloud, Info, User,
+} from 'lucide-react-native';
+
+const APP_VERSION = '0.1.0';
 
 const TIMEZONE_OPTIONS: { label: string; value: number }[] = [
   { label: 'Калининград (МСК−1)', value: -1 },
@@ -40,10 +52,10 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
   return (
     <View style={{
       flexDirection: 'row', alignItems: 'center', gap: 10,
-      marginBottom: 8, marginTop: 8, paddingHorizontal: 4,
+      marginBottom: 8, marginTop: 16, paddingHorizontal: 4,
     }}>
       <View style={{
-        width: 32, height: 32, borderRadius: 8,
+        width: 34, height: 34, borderRadius: 10,
         backgroundColor: theme.primaryDim,
         alignItems: 'center', justifyContent: 'center',
       }}>
@@ -56,12 +68,29 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
 
 export default function SettingsScreen() {
   const { profile, user } = useAuthStore();
+  const { loadLocal } = useTripsStore();
   const { t, lang, setLang } = useLang();
   const { theme, themeKey, setThemeKey } = useTheme();
+
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const [salary, setSalary] = useState<LocalSalaryRule | null>(null);
   const [saving, setSaving] = useState(false);
   const [tzPickerOpen, setTzPickerOpen] = useState(false);
+
+  // Profile fields
+  const [firstName, setFirstName] = useState(profile?.firstName ?? '');
+  const [lastName, setLastName] = useState(profile?.lastName ?? '');
+  const [employeeId, setEmployeeId] = useState(profile?.employeeId ?? '');
+  const [depot, setDepot] = useState(profile?.depot ?? '');
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // Telegram
+  const [telegramCode, setTelegramCode] = useState<string | null>(null);
+  const [telegramBusy, setTelegramBusy] = useState(false);
+
+  // Backup
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
 
   useEffect(() => {
     localSettingsStorage.get().then(setSettings);
@@ -86,21 +115,14 @@ export default function SettingsScreen() {
 
   async function handleSave() {
     if (!settings || !salary) return;
-
-    if (salary.ratePerHour < 0) {
-      Alert.alert(t.common_error, t.settings_errRate);
-      return;
-    }
+    if (salary.ratePerHour < 0) { Alert.alert(t.common_error, t.settings_errRate); return; }
     if (settings.monthlyHoursNorm <= 0 || settings.monthlyHoursNorm > 300) {
-      Alert.alert(t.common_error, t.settings_errNorm);
-      return;
+      Alert.alert(t.common_error, t.settings_errNorm); return;
     }
     if (settings.nightStartHour < 0 || settings.nightStartHour > 23 ||
         settings.nightEndHour < 0 || settings.nightEndHour > 23) {
-      Alert.alert(t.common_error, t.settings_errNight);
-      return;
+      Alert.alert(t.common_error, t.settings_errNight); return;
     }
-
     setSaving(true);
     try {
       await Promise.all([
@@ -115,11 +137,95 @@ export default function SettingsScreen() {
     }
   }
 
-  const currentTz = TIMEZONE_OPTIONS.find((tz) => tz.value === settings.timezoneOffsetFromMoscow);
+  async function handleSaveProfile() {
+    const token = await tokenStorage.get();
+    if (token === 'demo_mode_token') {
+      Alert.alert(t.profile_demoMode, t.profile_demoModeMsg); return;
+    }
+    const dto: UpdateProfileDto = { firstName, lastName, employeeId, depot };
+    const result = UpdateProfileDtoSchema.safeParse(dto);
+    if (!result.success) { Alert.alert(t.common_error, t.profile_profileError); return; }
+    setProfileSaving(true);
+    try {
+      await http.patch('/users/me/profile', result.data);
+      Alert.alert(t.common_done, t.profile_profileSaved);
+    } catch {
+      Alert.alert(t.common_error, t.profile_profileError);
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
-  const initials = profile
-    ? ((profile.firstName?.[0] ?? '') + (profile.lastName?.[0] ?? '')).toUpperCase() || '?'
-    : '?';
+  async function handleGenerateTelegramCode() {
+    const token = await tokenStorage.get();
+    if (token === 'demo_mode_token') {
+      Alert.alert(t.profile_demoMode, t.profile_demoModeMsg); return;
+    }
+    setTelegramBusy(true);
+    try {
+      const { code } = await telegramApi.generateCode();
+      setTelegramCode(code);
+      Clipboard.setString(code);
+    } catch {
+      Alert.alert(t.common_error, t.profile_telegramError);
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function handleExportBackup() {
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      Alert.alert(t.profile_backupUnavailableTitle, t.profile_backupUnavailable); return;
+    }
+    setBackupBusy(true);
+    try {
+      const json = await backupStorage.export();
+      const fileName = `backup_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.json`;
+      const fileUri = FileSystem.cacheDirectory + fileName;
+      await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: t.profile_backup });
+    } catch {
+      Alert.alert(t.common_error, t.profile_backupError);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleImportBackup() {
+    Alert.alert(t.profile_restoreTitle, t.profile_restoreMsg, [
+      { text: t.common_cancel, style: 'cancel' },
+      {
+        text: t.profile_restore,
+        style: 'destructive',
+        onPress: async () => {
+          setRestoreBusy(true);
+          try {
+            const result = await DocumentPicker.getDocumentAsync({
+              type: 'application/json',
+              copyToCacheDirectory: true,
+            });
+            if (result.canceled || !result.assets?.[0]) return;
+            const uri = result.assets[0].uri;
+            const json = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+            const { trips, routes } = await backupStorage.import(json);
+            await loadLocal();
+            Alert.alert(
+              t.common_done,
+              `${t.profile_restoredPrefix}${trips} ${pluralTrips(trips, t)}, ${routes}${t.profile_restoredSuffix}`,
+            );
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : t.profile_restoreError;
+            Alert.alert(t.common_error, msg);
+          } finally {
+            setRestoreBusy(false);
+          }
+        },
+      },
+    ]);
+  }
+
+  const currentTz = TIMEZONE_OPTIONS.find((tz) => tz.value === settings.timezoneOffsetFromMoscow);
 
   function themeLabel(key: ThemeKey): string {
     if (key === 'blue')   return t.settings_themeBlue;
@@ -133,29 +239,33 @@ export default function SettingsScreen() {
       style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}
       contentContainerStyle={{ paddingBottom: 60 }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 48, marginBottom: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 48, marginBottom: 8 }}>
         <SettingsIcon size={26} color={theme.primary} />
-        <Text style={[s.header, { color: theme.text, marginTop: 0, marginBottom: 0 }]}>{t.settings_title}</Text>
+        <Text style={[s.header, { color: theme.text }]}>{t.settings_title}</Text>
       </View>
 
       {/* ─── Профиль ──────────────────────────────────────────────────────── */}
-      {profile && (
-        <View style={[s.card, s.profileCard, { backgroundColor: theme.card }]}>
-          <View style={[s.avatar, { backgroundColor: theme.primaryDark, borderColor: theme.primary }]}>
-            <Text style={s.avatarText}>{initials}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[s.profileName, { color: theme.text }]}>
-              {[profile.firstName, profile.lastName].filter(Boolean).join(' ')}
-            </Text>
-            {user?.email ? <Text style={[s.profileEmail, { color: theme.textMute }]}>{user.email}</Text> : null}
-          </View>
-        </View>
-      )}
+      <SectionHeader icon={<User size={18} color={theme.primary} />} title={t.profile_title} />
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <ProfileField label={t.profile_firstName} value={firstName} onChange={setFirstName} theme={theme} />
+        <ProfileField label={t.profile_lastName} value={lastName} onChange={setLastName} theme={theme} />
+        <ProfileField label={t.profile_employeeId} value={employeeId} onChange={setEmployeeId} theme={theme} />
+        <ProfileField label={t.profile_depot} value={depot} onChange={setDepot} theme={theme} />
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: theme.primary }, profileSaving && { opacity: 0.5 }]}
+          onPress={handleSaveProfile}
+          disabled={profileSaving}
+          activeOpacity={0.75}
+        >
+          {profileSaving
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.btnText}>{t.profile_saveProfile}</Text>}
+        </TouchableOpacity>
+      </View>
 
-      {/* ─── Внешний вид ───────────────────────────────────────────────────── */}
+      {/* ─── Внешний вид ──────────────────────────────────────────────────── */}
       <SectionHeader icon={<Palette size={18} color={theme.primary} />} title={t.settings_theme} />
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_theme}</Text>
         <View style={s.swatchRow}>
           {THEME_SWATCHES.map((sw) => (
@@ -170,14 +280,11 @@ export default function SettingsScreen() {
               ]}
             />
           ))}
-          <Text style={[s.swatchLabel, { color: theme.textDim }]}>
-            {themeLabel(themeKey)}
-          </Text>
+          <Text style={[s.swatchLabel, { color: theme.textDim }]}>{themeLabel(themeKey)}</Text>
         </View>
       </View>
 
-      {/* ─── Язык / Тіл ───────────────────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_lang}</Text>
         <View style={s.langRow}>
           {(['ru', 'kk'] as Lang[]).map((l) => (
@@ -203,11 +310,10 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ─── Часовой пояс ─────────────────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      {/* ─── Часовой пояс + нормы ─────────────────────────────────────────── */}
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_timezone}</Text>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.settings_timezoneHint}</Text>
-
         <TouchableOpacity
           style={[s.selectField, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => setTzPickerOpen(!tzPickerOpen)}
@@ -218,7 +324,6 @@ export default function SettingsScreen() {
           </Text>
           <Text style={[s.selectArrow, { color: theme.textMute }]}>{tzPickerOpen ? '▲' : '▼'}</Text>
         </TouchableOpacity>
-
         {tzPickerOpen && (
           <View style={[s.optionsList, { borderColor: theme.border }]}>
             {TIMEZONE_OPTIONS.map((tz) => (
@@ -229,10 +334,7 @@ export default function SettingsScreen() {
                   { backgroundColor: theme.surface, borderBottomColor: theme.card },
                   tz.value === settings.timezoneOffsetFromMoscow && { backgroundColor: theme.primaryDark },
                 ]}
-                onPress={() => {
-                  updateSetting('timezoneOffsetFromMoscow', tz.value);
-                  setTzPickerOpen(false);
-                }}
+                onPress={() => { updateSetting('timezoneOffsetFromMoscow', tz.value); setTzPickerOpen(false); }}
               >
                 <Text style={[
                   s.optionText,
@@ -247,8 +349,7 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* ─── Норма часов ──────────────────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_hoursNorm}</Text>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.settings_hoursNormHint}</Text>
         <NumericField
@@ -260,8 +361,7 @@ export default function SettingsScreen() {
         />
       </View>
 
-      {/* ─── Локомотив по умолчанию ───────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_defaultLoco}</Text>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.settings_defaultLocoHint}</Text>
         <View style={{ marginBottom: 10 }}>
@@ -286,8 +386,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ─── Ночные часы ──────────────────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <View style={s.switchRow}>
           <View style={{ flex: 1 }}>
             <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_nightHours}</Text>
@@ -300,7 +399,6 @@ export default function SettingsScreen() {
             thumbColor={settings.trackNightHours ? theme.primary : theme.textMute}
           />
         </View>
-
         {settings.trackNightHours && (
           <View style={s.nightHoursRow}>
             <View style={{ flex: 1 }}>
@@ -308,10 +406,7 @@ export default function SettingsScreen() {
               <TextInput
                 style={[s.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
                 value={String(settings.nightStartHour)}
-                onChangeText={(v) => {
-                  const n = parseInt(v, 10);
-                  if (!isNaN(n) && n >= 0 && n <= 23) updateSetting('nightStartHour', n);
-                }}
+                onChangeText={(v) => { const n = parseInt(v, 10); if (!isNaN(n) && n >= 0 && n <= 23) updateSetting('nightStartHour', n); }}
                 keyboardType="numeric"
                 placeholder="22"
                 placeholderTextColor={theme.textMute}
@@ -323,10 +418,7 @@ export default function SettingsScreen() {
               <TextInput
                 style={[s.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
                 value={String(settings.nightEndHour)}
-                onChangeText={(v) => {
-                  const n = parseInt(v, 10);
-                  if (!isNaN(n) && n >= 0 && n <= 23) updateSetting('nightEndHour', n);
-                }}
+                onChangeText={(v) => { const n = parseInt(v, 10); if (!isNaN(n) && n >= 0 && n <= 23) updateSetting('nightEndHour', n); }}
                 keyboardType="numeric"
                 placeholder="6"
                 placeholderTextColor={theme.textMute}
@@ -336,8 +428,7 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {/* ─── Электроэнергия ───────────────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <View style={s.switchRow}>
           <View style={{ flex: 1 }}>
             <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_electricity}</Text>
@@ -352,8 +443,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ─── Следование пассажиром ────────────────────────────────────────── */}
-      <View style={[s.card, { backgroundColor: theme.card }]}>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <View style={s.switchRow}>
           <View style={{ flex: 1 }}>
             <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_passengerTravel}</Text>
@@ -370,10 +460,8 @@ export default function SettingsScreen() {
 
       {/* ─── Расчёт зарплаты ──────────────────────────────────────────────── */}
       <SectionHeader icon={<Calculator size={18} color={theme.primary} />} title={t.settings_salary} />
-      <View style={[s.card, { backgroundColor: theme.card }]}>
-        <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_salary}</Text>
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.settings_salaryHint}</Text>
-
         <NumericField label={t.settings_ratePerHour} value={salary.ratePerHour}
           onChange={(v) => updateSalary('ratePerHour', v)} placeholder="2500" theme={theme} />
         <NumericField label={t.settings_tripBonus} value={salary.tripBonus}
@@ -402,7 +490,75 @@ export default function SettingsScreen() {
           onChange={(v) => updateSalary('taxPercent', v)} placeholder="13" decimal theme={theme} />
       </View>
 
-      {/* ─── Сохранить ────────────────────────────────────────────────────── */}
+      {/* ─── Telegram ─────────────────────────────────────────────────────── */}
+      <SectionHeader icon={<Send size={18} color={theme.primary} />} title={t.profile_telegram} />
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Text style={[s.cardHint, { color: theme.textMute }]}>{t.profile_telegramHint}</Text>
+        {telegramCode ? (
+          <View style={[s.codeBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[s.codeLabel, { color: theme.textDim }]}>{t.profile_telegramCodeLabel}</Text>
+            <Text style={[s.codeValue, { color: theme.primary }]}>{telegramCode}</Text>
+            <Text style={[s.codeInstr, { color: theme.textMute }]}>{t.profile_telegramInstructions}</Text>
+          </View>
+        ) : null}
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: theme.primary }, telegramBusy && { opacity: 0.5 }]}
+          onPress={handleGenerateTelegramCode}
+          disabled={telegramBusy}
+          activeOpacity={0.75}
+        >
+          {telegramBusy
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.btnText}>{t.profile_telegramGetCode}</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* ─── Резервная копия ──────────────────────────────────────────────── */}
+      <SectionHeader icon={<Cloud size={18} color={theme.primary} />} title={t.profile_backup} />
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Text style={[s.cardHint, { color: theme.textMute }]}>{t.profile_backupHint}</Text>
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: theme.primary }, backupBusy && { opacity: 0.5 }]}
+          onPress={handleExportBackup}
+          disabled={backupBusy}
+          activeOpacity={0.75}
+        >
+          {backupBusy
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={s.btnText}>{t.profile_createBackup}</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.btn, s.btnOutline, { marginTop: 8, borderColor: theme.primary }, restoreBusy && { opacity: 0.5 }]}
+          onPress={handleImportBackup}
+          disabled={restoreBusy}
+          activeOpacity={0.75}
+        >
+          {restoreBusy
+            ? <ActivityIndicator color={theme.primary} />
+            : <Text style={[s.btnOutlineText, { color: theme.primary }]}>{t.profile_restoreBackup}</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* ─── О приложении ─────────────────────────────────────────────────── */}
+      <SectionHeader icon={<Info size={18} color={theme.primary} />} title="О приложении" />
+      <View style={[s.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={s.aboutRow}>
+          <Text style={[s.aboutLabel, { color: theme.textDim }]}>Версия</Text>
+          <Text style={[s.aboutValue, { color: theme.text }]}>{APP_VERSION}</Text>
+        </View>
+        <View style={s.aboutRow}>
+          <Text style={[s.aboutLabel, { color: theme.textDim }]}>Приложение</Text>
+          <Text style={[s.aboutValue, { color: theme.text }]}>RailCrew</Text>
+        </View>
+        {user?.email ? (
+          <View style={s.aboutRow}>
+            <Text style={[s.aboutLabel, { color: theme.textDim }]}>Аккаунт</Text>
+            <Text style={[s.aboutValue, { color: theme.textMute }]} numberOfLines={1}>{user.email}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* ─── Сохранить настройки ──────────────────────────────────────────── */}
       <TouchableOpacity
         style={[s.saveBtn, { backgroundColor: theme.primary }, saving && { opacity: 0.5 }]}
         onPress={handleSave}
@@ -414,6 +570,27 @@ export default function SettingsScreen() {
           : <Text style={s.saveBtnText}>{t.settings_saveAll}</Text>}
       </TouchableOpacity>
     </ScrollView>
+  );
+}
+
+function ProfileField({
+  label, value, onChange, theme,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <View style={{ marginBottom: 10 }}>
+      <Text style={[s.label, { color: theme.textDim }]}>{label}</Text>
+      <TextInput
+        style={[s.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+        value={value}
+        onChangeText={onChange}
+        placeholderTextColor={theme.textMute}
+      />
+    </View>
   );
 }
 
@@ -456,40 +633,26 @@ function NumericField({
 }
 
 const s = StyleSheet.create({
-  header: { fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
+  header: { fontSize: 24, fontWeight: 'bold' },
   card: {
     borderRadius: 16, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: 'transparent',
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   cardHint: { fontSize: 13, marginBottom: 12 },
 
-  profileCard: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
-  avatar: {
-    width: 56, height: 56, borderRadius: 28,
-    borderWidth: 2, alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  profileName: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
-  profileEmail: { fontSize: 13 },
-
   swatchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   swatch: { width: 34, height: 34, borderRadius: 17 },
   swatchLabel: { fontSize: 14, marginLeft: 4 },
 
   langRow: { flexDirection: 'row', gap: 10 },
-  langBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1,
-    alignItems: 'center',
-  },
+  langBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   langBtnText: { fontSize: 14, fontWeight: '500' },
 
   label: { fontSize: 13, marginBottom: 4 },
-  input: {
-    borderRadius: 10, padding: 12, fontSize: 15, borderWidth: 1,
-  },
+  input: { borderRadius: 10, padding: 12, fontSize: 15, borderWidth: 1 },
 
   selectField: {
     borderRadius: 10, padding: 12,
@@ -506,6 +669,20 @@ const s = StyleSheet.create({
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   nightHoursRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
   nightDash: { fontSize: 18, paddingBottom: 12 },
+
+  btn: { borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
+  btnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  btnOutline: { backgroundColor: 'transparent', borderWidth: 1 },
+  btnOutlineText: { fontSize: 15, fontWeight: '600' },
+
+  codeBox: { borderRadius: 10, borderWidth: 1, padding: 14, marginBottom: 10, alignItems: 'center' },
+  codeLabel: { fontSize: 12, marginBottom: 6 },
+  codeValue: { fontSize: 32, fontWeight: '700', letterSpacing: 4, marginBottom: 6 },
+  codeInstr: { fontSize: 12, textAlign: 'center' },
+
+  aboutRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  aboutLabel: { fontSize: 14 },
+  aboutValue: { fontSize: 14, fontWeight: '600' },
 
   saveBtn: { borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4, marginBottom: 20 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
