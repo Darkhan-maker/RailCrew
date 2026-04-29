@@ -15,6 +15,7 @@ import { backupStorage, tokenStorage } from '@/services/storage.service';
 import { UpdateProfileDtoSchema, UpdateProfileDto } from '@railcrew/contracts';
 import { useLang, pluralTrips } from '@/i18n';
 import { useTheme } from '@/theme';
+import { UserCircle } from 'lucide-react-native';
 
 function getInitials(first?: string | null, last?: string | null): string {
   const f = first?.trim()[0]?.toUpperCase() ?? '';
@@ -153,7 +154,10 @@ export default function ProfileScreen() {
       style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}
       contentContainerStyle={{ paddingBottom: 40 }}
     >
-      <Text style={[s.header, { color: theme.text }]}>{t.profile_title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 48, marginBottom: 20 }}>
+        <UserCircle size={26} color={theme.primary} />
+        <Text style={[s.header, { color: theme.text, marginTop: 0, marginBottom: 0 }]}>{t.profile_title}</Text>
+      </View>
 
       {/* Avatar */}
       <View style={s.avatarWrap}>
@@ -298,7 +302,12 @@ const s = StyleSheet.create({
   avatarText: { color: '#fff', fontSize: 26, fontWeight: '700' },
   avatarName: { fontSize: 18, fontWeight: '600' },
 
-  card: { borderRadius: 14, padding: 16, marginBottom: 12 },
+  card: {
+    borderRadius: 16, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: 'transparent',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
   cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   cardHint: { fontSize: 13, marginBottom: 12 },
   email: { fontSize: 16, fontWeight: '600' },

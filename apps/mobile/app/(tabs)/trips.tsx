@@ -13,6 +13,7 @@ import { LocalTrip } from '@/services/storage.service';
 import { formatDateRu } from '@/utils/date';
 import { useLang, pluralTrips, fmtDur, Strings } from '@/i18n';
 import { useTheme, Theme } from '@/theme';
+import { ListTodo, Truck, Users, Wrench, AlertCircle, Zap, Clock } from 'lucide-react-native';
 
 // ─── Period filter ────────────────────────────────────────────────────────────
 
@@ -47,6 +48,17 @@ function tripTypeColor(type: string, theme: Theme): string {
     DEAD_RUN: theme.textMute,
   };
   return map[type] ?? theme.textMute;
+}
+
+function tripTypeIcon(type: string, color: string, size = 16): React.ReactNode {
+  const props = { size, color };
+  switch (type) {
+    case 'FREIGHT': return <Truck {...props} />;
+    case 'PASSENGER': return <Users {...props} />;
+    case 'SHUNTING': return <Wrench {...props} />;
+    case 'DEAD_RUN': return <AlertCircle {...props} />;
+    default: return <AlertCircle {...props} />;
+  }
 }
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
@@ -470,14 +482,23 @@ export default function TripsScreen() {
             <Text style={[s.metaExtra, { color: theme.textMute }]} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
           )}
           <View style={s.cardFooter}>
-            <Text style={[s.chip, { backgroundColor: theme.surface, color: theme.primary }]}>
-              {tripTypeLabel(item.tripType)}
-            </Text>
+            <View style={[s.chipRow2, { backgroundColor: theme.surface }]}>
+              {tripTypeIcon(item.tripType, tripTypeColor(item.tripType, theme), 14)}
+              <Text style={[s.chip, { color: theme.primary }]}>
+                {tripTypeLabel(item.tripType)}
+              </Text>
+            </View>
             <View style={s.cardFooterRight}>
               {elec !== null && (
-                <Text style={[s.elecText, { color: theme.success }]}>⚡ {elec.toFixed(0)} кВт·ч</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Zap size={12} color={theme.success} />
+                  <Text style={[s.elecText, { color: theme.success }]}>{elec.toFixed(0)} кВт·ч</Text>
+                </View>
               )}
-              <Text style={[s.duration, { color: theme.textDim }]}>{fmtDur(item.durationMinutes ?? 0, t)}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Clock size={12} color={theme.textDim} />
+                <Text style={[s.duration, { color: theme.textDim }]}>{fmtDur(item.durationMinutes ?? 0, t)}</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -502,7 +523,10 @@ export default function TripsScreen() {
 
       {/* Header row */}
       <View style={s.topRow}>
-        <Text style={[s.header, { color: theme.text }]}>{t.trips_title}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <ListTodo size={22} color={theme.primary} />
+          <Text style={[s.header, { color: theme.text }]}>{t.trips_title}</Text>
+        </View>
         <View style={s.topRowActions}>
           <TouchableOpacity
             style={[s.filterBtn, { borderColor: theme.border },
@@ -760,6 +784,9 @@ const s = StyleSheet.create({
   card: {
     borderRadius: 16, marginBottom: 10,
     flexDirection: 'row', overflow: 'hidden',
+    borderWidth: 1, borderColor: 'transparent',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   typeStripe: { width: 4 },
   cardContent: { flex: 1, padding: 16 },
@@ -774,6 +801,7 @@ const s = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   cardFooterRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   chip: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  chipRow2: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   elecText: { fontSize: 12 },
   duration: { fontSize: 16, fontWeight: '600' },
   empty: { textAlign: 'center', marginTop: 60, fontSize: 16 },

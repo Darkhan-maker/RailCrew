@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { LayoutDashboard, Clock, Zap, Wallet, Train } from 'lucide-react-native';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -317,7 +318,10 @@ export default function DashboardScreen() {
       contentContainerStyle={{ paddingBottom: 100 }}
     >
       <View style={s.greetingRow}>
-        <Text style={[s.greeting, { color: theme.text }]}>{greeting}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <LayoutDashboard size={22} color={theme.primary} style={{ marginRight: 8 }} />
+          <Text style={[s.greeting, { color: theme.text }]} numberOfLines={1}>{greeting}</Text>
+        </View>
         <TouchableOpacity
           style={[s.exportMonthBtn, { borderColor: theme.primary }]}
           onPress={handleExportPress}
@@ -373,9 +377,9 @@ export default function DashboardScreen() {
         {normPct !== null ? (
           <NormTile pct={normPct} hoursWorked={totalHours} hoursNorm={settings!.monthlyHoursNorm} />
         ) : (
-          <StatTile label={t.dashboard_hours} value={String(totalHours)} />
+          <StatTile label={t.dashboard_hours} value={String(totalHours)} icon={<Clock size={20} color={theme.primary} />} />
         )}
-        <StatTile label={t.dashboard_tripsCount} value={String(filtered.length)} />
+        <StatTile label={t.dashboard_tripsCount} value={String(filtered.length)} icon={<Train size={20} color={theme.primary} />} />
       </View>
 
       {filtered.length === 0 ? (
@@ -440,7 +444,10 @@ export default function DashboardScreen() {
           {/* Electricity */}
           {elecStats !== null && (
             <View style={[s.card, s.accentLeft, { backgroundColor: theme.card, borderLeftColor: theme.success }]}>
-              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_electricity}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Zap size={14} color={theme.success} />
+                <Text style={[s.cardLabel, { color: theme.textMute, marginBottom: 0 }]}>{t.dashboard_electricity}</Text>
+              </View>
               <View style={s.metricRow}>
                 <Text style={[s.metricLabel, { color: theme.textMute }]}>{t.dashboard_elecPeriod}</Text>
                 <Text style={[s.metricValue, { color: theme.success }]}>{elecStats.total.toFixed(0)} кВт·ч</Text>
@@ -668,7 +675,7 @@ function NormTile({ pct, hoursWorked, hoursNorm }: {
   const { theme } = useTheme();
   const color = pct >= 1 ? theme.warning : theme.primary;
   return (
-    <View style={[s.tile, { alignItems: 'center', backgroundColor: theme.card }]}>
+    <View style={[s.tile, { alignItems: 'center', backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}>
       <View style={[s.normRing, { borderColor: color }]}>
         <Text style={[s.normPct, { color }]}>{Math.round(pct * 100)}%</Text>
       </View>
@@ -678,10 +685,11 @@ function NormTile({ pct, hoursWorked, hoursNorm }: {
   );
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function StatTile({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   const { theme } = useTheme();
   return (
-    <View style={[s.tile, { backgroundColor: theme.card }]}>
+    <View style={[s.tile, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}>
+      {icon && <View style={{ marginBottom: 6 }}>{icon}</View>}
       <Text style={[s.tileValue, { color: theme.primary }]}>{value}</Text>
       <Text style={[s.tileLabel, { color: theme.textMute }]}>{label}</Text>
     </View>
@@ -773,7 +781,12 @@ const s = StyleSheet.create({
   },
   periodBtnText: { fontSize: 14 },
 
-  card: { borderRadius: 16, padding: 16, marginBottom: 12 },
+  card: {
+    borderRadius: 16, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: 'transparent',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
   cardLabel: {
     fontSize: 11, fontWeight: '600',
     letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10,

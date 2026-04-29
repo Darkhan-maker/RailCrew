@@ -1,21 +1,14 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
+import { Home, List, PlusCircle, Settings, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLang } from '@/i18n';
 import { useTheme } from '@/theme';
 
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-
-function icon(active: IoniconName, inactive: IoniconName, size = 22) {
-  return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Ionicons name={focused ? active : inactive} size={size} color={color} />
-  );
-}
-
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 8);
-  const tabBarHeight = 52 + bottomPad;
+  const tabBarHeight = 60 + bottomPad;
   const { t } = useLang();
   const { theme } = useTheme();
 
@@ -41,35 +34,60 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: t.nav_summary,
-          tabBarIcon: icon('home', 'home-outline'),
+          tabBarIcon: ({ color, focused }) => (
+            <Home size={24} color={focused ? theme.primary : theme.textMute} />
+          ),
         }}
       />
       <Tabs.Screen
         name="trips"
         options={{
           title: t.nav_trips,
-          tabBarIcon: icon('list', 'list-outline'),
+          tabBarIcon: ({ color, focused }) => (
+            <List size={24} color={focused ? theme.primary : theme.textMute} />
+          ),
         }}
       />
       <Tabs.Screen
         name="add"
         options={{
           title: t.nav_add,
-          tabBarIcon: icon('add-circle', 'add-circle-outline', 28),
+          tabBarIcon: ({ focused }) => (
+            <View style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: theme.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: -20,
+              shadowColor: theme.primary,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.4,
+              shadowRadius: 8,
+              elevation: 8,
+            }}>
+              <PlusCircle size={28} color="#fff" />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: t.nav_settings,
-          tabBarIcon: icon('settings', 'settings-outline'),
+          tabBarIcon: ({ color, focused }) => (
+            <Settings size={24} color={focused ? theme.primary : theme.textMute} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: t.nav_profile,
-          tabBarIcon: icon('person', 'person-outline'),
+          tabBarIcon: ({ color, focused }) => (
+            <User size={24} color={focused ? theme.primary : theme.textMute} />
+          ),
         }}
       />
     </Tabs>

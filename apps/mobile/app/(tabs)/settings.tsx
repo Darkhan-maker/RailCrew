@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '@/store/auth.store';
 import { useLang, Lang } from '@/i18n';
 import { useTheme, ThemeKey, THEMES } from '@/theme';
+import { Settings as SettingsIcon, Palette, Calculator, Send, Cloud, Info, User } from 'lucide-react-native';
 
 const TIMEZONE_OPTIONS: { label: string; value: number }[] = [
   { label: 'Калининград (МСК−1)', value: -1 },
@@ -33,6 +34,25 @@ const THEME_SWATCHES: { key: ThemeKey; color: string }[] = [
   { key: 'purple', color: '#8B5CF6' },
   { key: 'orange', color: '#F59E0B' },
 ];
+
+function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={{
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      marginBottom: 8, marginTop: 8, paddingHorizontal: 4,
+    }}>
+      <View style={{
+        width: 32, height: 32, borderRadius: 8,
+        backgroundColor: theme.primaryDim,
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        {icon}
+      </View>
+      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>{title}</Text>
+    </View>
+  );
+}
 
 export default function SettingsScreen() {
   const { profile, user } = useAuthStore();
@@ -113,7 +133,10 @@ export default function SettingsScreen() {
       style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}
       contentContainerStyle={{ paddingBottom: 60 }}
     >
-      <Text style={[s.header, { color: theme.text }]}>{t.settings_title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 48, marginBottom: 16 }}>
+        <SettingsIcon size={26} color={theme.primary} />
+        <Text style={[s.header, { color: theme.text, marginTop: 0, marginBottom: 0 }]}>{t.settings_title}</Text>
+      </View>
 
       {/* ─── Профиль ──────────────────────────────────────────────────────── */}
       {profile && (
@@ -130,7 +153,8 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* ─── Тема ─────────────────────────────────────────────────────────── */}
+      {/* ─── Внешний вид ───────────────────────────────────────────────────── */}
+      <SectionHeader icon={<Palette size={18} color={theme.primary} />} title={t.settings_theme} />
       <View style={[s.card, { backgroundColor: theme.card }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_theme}</Text>
         <View style={s.swatchRow}>
@@ -345,6 +369,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* ─── Расчёт зарплаты ──────────────────────────────────────────────── */}
+      <SectionHeader icon={<Calculator size={18} color={theme.primary} />} title={t.settings_salary} />
       <View style={[s.card, { backgroundColor: theme.card }]}>
         <Text style={[s.cardTitle, { color: theme.text }]}>{t.settings_salary}</Text>
         <Text style={[s.cardHint, { color: theme.textMute }]}>{t.settings_salaryHint}</Text>
@@ -432,7 +457,12 @@ function NumericField({
 
 const s = StyleSheet.create({
   header: { fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
-  card: { borderRadius: 14, padding: 16, marginBottom: 12 },
+  card: {
+    borderRadius: 16, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: 'transparent',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
   cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   cardHint: { fontSize: 13, marginBottom: 12 },
 
