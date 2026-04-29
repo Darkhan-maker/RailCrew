@@ -223,6 +223,22 @@ export const localTripsStorage = {
     return trips.filter((t) => !t.syncedAt);
   },
 
+  async mergeFromServer(serverTrips: Trip[]): Promise<void> {
+    const local = await this.getAll();
+    const knownIds = new Set(local.map((t) => t.id));
+    const toAdd: LocalTrip[] = serverTrips
+      .filter((st) => !knownIds.has(st.id))
+      .map((st) => ({
+        ...st,
+        syncedAt: st.syncedAt ?? new Date(),
+      } as LocalTrip));
+    if (toAdd.length === 0) return;
+    const merged = [...toAdd, ...local].sort(
+      (a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0),
+    );
+    await AsyncStorage.setItem(KEYS.TRIPS, JSON.stringify(merged));
+  },
+
   async clear(): Promise<void> {
     await AsyncStorage.removeItem(KEYS.TRIPS);
   },

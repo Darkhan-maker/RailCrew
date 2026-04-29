@@ -126,7 +126,7 @@ function calcSalary(
 }
 
 export default function DashboardScreen() {
-  const { trips, loadLocal } = useTripsStore();
+  const { trips, loadLocal, syncFromServer } = useTripsStore();
   const { profile } = useAuthStore();
   const { t, lang } = useLang();
   const { theme } = useTheme();
@@ -151,6 +151,7 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadLocal();
+    syncFromServer().catch(() => {});
     localSalaryStorage.get().then(setSalaryRule);
     localSettingsStorage.get().then(setSettings);
   }, []);

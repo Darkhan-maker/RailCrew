@@ -79,6 +79,9 @@ export interface ParsedTrip {
   date: string;
   startTime: string;
   endTime: string;
+  endDate?: string;
+  handoverDate?: string;
+  handoverTime?: string;
   durationMinutes: number;
   tripType: TripType;
   locoModel?: string;
@@ -87,18 +90,16 @@ export interface ParsedTrip {
 }
 
 export function parseTripText(text: string): ParsedTrip | null {
-  // Normalize
   const t = text.trim();
 
-  // Extract route: "Астана-Алматы" or "Астана — Алматы" or "Астана Алматы"
+  // Route: destination must be letters only (no digits) to avoid "Жарык 29 апреля"
   let routeFrom = '';
   let routeTo = '';
-  const routeMatch = t.match(/^([А-ЯЁа-яё\w]+(?:[\s-][А-ЯЁа-яё\w]+)*?)\s*[-–—]\s*([А-ЯЁа-яё\w]+(?:\s[А-ЯЁа-яё\w]+)?)/u);
+  const routeMatch = t.match(/^([А-ЯЁа-яёA-Za-z]+(?:[\s-][А-ЯЁа-яёA-Za-z]+)*?)\s*[-–—]\s*([А-ЯЁа-яёA-Za-z]+(?:[\s-][А-ЯЁа-яёA-Za-z]+)?)/u);
   if (routeMatch) {
     routeFrom = routeMatch[1].trim();
     routeTo = routeMatch[2].trim();
   } else {
-    // Try "от Астаны до Алматы" or just two capitalized words
     const words = t.split(/\s+/);
     if (words.length >= 2) {
       routeFrom = words[0];
@@ -108,19 +109,33 @@ export function parseTripText(text: string): ParsedTrip | null {
 
   if (!routeFrom || !routeTo) return null;
 
-  // Date
+  // Date (first date in text = явка date)
   const date = parseDate(t);
   if (!date) return null;
 
-  // Times: look for "явка HH:mm" / "сдача HH:mm" or bare times
+  // Times: try "явка HH:mm" and "сдача [DD Month] HH:mm"
   let startTime: string | null = null;
   let endTime: string | null = null;
+  let handoverDate: string | undefined;
 
   const явкаMatch = t.match(/(?:явк[аи]|отправл|выезд)\s+(\d{1,2}[:\-]\d{2})/iu);
-  const сдачаMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2}[:\-]\d{2})/iu);
-
   if (явкаMatch) startTime = parseTime(явкаMatch[1]);
-  if (сдачаMatch) endTime = parseTime(сдачаMatch[1]);
+
+  // "Сдача 30 апреля 3:00" — multi-day with date before time
+  const сдачаDateMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2})\s+([а-яёА-ЯЁ]+)\s+(\d{1,2}[:\-]\d{2})/iu);
+  if (сдачаDateMatch) {
+    endTime = parseTime(сдачаDateMatch[3]);
+    const hdMonth = parseMonth(сдачаDateMatch[2]);
+    if (hdMonth) {
+      const hdDay = сдачаDateMatch[1].padStart(2, '0');
+      const hdYear = new Date().getFullYear();
+      handoverDate = `${hdYear}-${hdMonth.toString().padStart(2, '0')}-${hdDay}`;
+    }
+  } else {
+    // "Сдача 3:00" — same day
+    const сдачаMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2}[:\-]\d{2})/iu);
+    if (сдачаMatch) endTime = parseTime(сдачаMatch[1]);
+  }
 
   // Fallback: find all HH:MM in text
   if (!startTime || !endTime) {
@@ -134,14 +149,15 @@ export function parseTripText(text: string): ParsedTrip | null {
   const durationMinutes = calcDuration(startTime, endTime);
   const tripType = parseTripType(t);
 
-  // Loco: look for pattern after trip type or at end
   const locoSection = t.replace(/явк[аи]/iu, '').replace(/сдач[аи]/iu, '');
   const { locoModel, locoNumber } = parseLocoModel(locoSection);
 
-  // Train number: look for "поезд 1234" or "№1234"
   let trainNumber: string | undefined;
   const trainMatch = t.match(/(?:поезд|п\.|train)\s*[№#]?\s*(\d+)/iu);
   if (trainMatch) trainNumber = trainMatch[1];
+
+  // endDate = handoverDate when it differs from the явка date
+  const endDate = handoverDate && handoverDate !== date ? handoverDate : undefined;
 
   return {
     routeFrom,
@@ -149,6 +165,9 @@ export function parseTripText(text: string): ParsedTrip | null {
     date,
     startTime,
     endTime,
+    endDate,
+    handoverDate,
+    handoverTime: endTime,
     durationMinutes,
     tripType,
     locoModel,
@@ -215,6 +234,7 @@ export class TelegramService {
       routeFrom: parsed.routeFrom,
       routeTo: parsed.routeTo,
       date: parsed.date,
+      endDate: parsed.endDate,
       startTime: parsed.startTime,
       endTime: parsed.endTime,
       durationMinutes: parsed.durationMinutes,
@@ -223,6 +243,8 @@ export class TelegramService {
       locoModel: parsed.locoModel,
       locoNumber: parsed.locoNumber,
       trainNumber: parsed.trainNumber,
+      handoverDate: parsed.handoverDate,
+      handoverTime: parsed.handoverTime,
     };
 
     const trip = await this.tripsService.create(userId, dto);

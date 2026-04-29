@@ -32,6 +32,7 @@ interface TripsState {
   updateTrip: (id: string, patch: Partial<LocalCreateTripDto>) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
   syncPending: () => Promise<void>;
+  syncFromServer: () => Promise<void>;
 }
 
 export const useTripsStore = create<TripsState>((set, get) => ({
@@ -98,6 +99,17 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       await tripsApi.remove(id);
     } catch {
       // offline or local-only — already removed from local storage
+    }
+  },
+
+  syncFromServer: async () => {
+    try {
+      const { items } = await tripsApi.list({ take: 200 });
+      await localTripsStorage.mergeFromServer(items);
+      const trips = await localTripsStorage.getAll();
+      set({ trips });
+    } catch {
+      // offline — silently skip
     }
   },
 

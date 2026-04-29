@@ -297,7 +297,7 @@ function FilterModal({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TripsScreen() {
-  const { trips, isLoading, loadLocal, syncPending, deleteTrip } = useTripsStore();
+  const { trips, isLoading, loadLocal, syncPending, syncFromServer, deleteTrip } = useTripsStore();
   const { t } = useLang();
   const { theme } = useTheme();
 
@@ -323,6 +323,7 @@ export default function TripsScreen() {
   const [multiSectionOnly, setMultiSectionOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const [refreshing, setRefreshing] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [modalRouteFrom, setModalRouteFrom] = useState('');
   const [modalRouteTo, setModalRouteTo] = useState('');
@@ -353,7 +354,18 @@ export default function TripsScreen() {
   useEffect(() => {
     loadLocal();
     syncPending().catch(() => {});
+    syncFromServer().catch(() => {});
   }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await syncFromServer();
+      await syncPending();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     let result = trips;
@@ -684,6 +696,8 @@ export default function TripsScreen() {
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 100 }}
           keyboardShouldPersistTaps="handled"
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
           ListEmptyComponent={
             <Text style={[s.empty, { color: theme.textMute }]}>{emptyText}</Text>
           }

@@ -159,11 +159,14 @@ export class TelegramBot implements OnModuleInit, OnModuleDestroy {
       const dur = tr.durationMinutes
         ? `⏱ ${Math.floor(tr.durationMinutes / 60)}ч ${tr.durationMinutes % 60}м\n`
         : '';
+      const dateRange = tr.endDate && tr.endDate !== tr.date
+        ? `${tr.date} → ${tr.endDate}`
+        : tr.date;
 
       ctx.replyWithMarkdown(
         `✅ *Поездка сохранена!*\n\n` +
         `🗺 *${tr.routeFrom} → ${tr.routeTo}*\n` +
-        `📅 ${tr.date} · ${tr.startTime}–${tr.endTime}\n` +
+        `📅 ${dateRange} · ${tr.startTime}–${tr.endTime}\n` +
         `${dur}` +
         `${loco}` +
         `📌 ${TYPE_LABEL[tr.tripType] ?? tr.tripType}`,
