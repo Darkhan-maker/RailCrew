@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { BarChart, PieChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
@@ -119,6 +120,7 @@ export default function DashboardScreen() {
   const { profile } = useAuthStore();
   const { t, lang } = useLang();
   const { theme } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const [period, setPeriod] = useState<PeriodFilter>('MONTH');
   const [salaryRule, setSalaryRule] = useState<LocalSalaryRule | null>(null);
   const [settings, setSettings] = useState<LocalSettings | null>(null);
@@ -238,6 +240,56 @@ export default function DashboardScreen() {
     for (const tr of filtered) map.set(tr.tripType, (map.get(tr.tripType) ?? 0) + 1);
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
   }, [filtered]);
+
+  const chartHoursData = useMemo(() => {
+    const bounds = getPeriodBounds(period);
+    if (!bounds || filtered.length === 0) return null;
+    const { from, to } = bounds;
+    const start = new Date(from);
+    const end = new Date(to);
+    const days: string[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      days.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    if (days.length > 31) return null;
+    const hoursByDay: Record<string, number> = {};
+    for (const d of days) hoursByDay[d] = 0;
+    for (const tr of filtered) {
+      if (hoursByDay[tr.date] !== undefined) {
+        hoursByDay[tr.date] += (tr.durationMinutes ?? 0) / 60;
+      }
+    }
+    const hasData = Object.values(hoursByDay).some(h => h > 0);
+    if (!hasData) return null;
+    const labels: string[] = [];
+    const data: number[] = [];
+    const months = lang === 'kk' ? MONTH_SHORT_KK : MONTH_SHORT;
+    for (const d of days) {
+      const [, m, day] = d.split('-').map(Number);
+      labels.push(days.length <= 7 ? `${day}` : days.length <= 14 ? (days.indexOf(d) % 2 === 0 ? `${day}` : '') : (days.indexOf(d) % 5 === 0 ? `${day}/${months[m - 1]}` : ''));
+      data.push(Math.round(hoursByDay[d] * 10) / 10);
+    }
+    return { labels, datasets: [{ data }] };
+  }, [filtered, period, lang]);
+
+  const chartTypeData = useMemo(() => {
+    if (typeStats.length === 0) return null;
+    const COLORS: Record<string, string> = {
+      FREIGHT: theme.primary,
+      PASSENGER: theme.success,
+      SHUNTING: theme.warning,
+      DEAD_RUN: theme.textMute,
+    };
+    return typeStats.map(([type, count]) => ({
+      name: ({ FREIGHT: t.tripType_FREIGHT, PASSENGER: t.tripType_PASSENGER, SHUNTING: t.tripType_SHUNTING, DEAD_RUN: t.tripType_DEAD_RUN } as Record<string, string>)[type] ?? type,
+      population: count,
+      color: COLORS[type] ?? theme.textMute,
+      legendFontColor: theme.textDim,
+      legendFontSize: 12,
+    }));
+  }, [typeStats, theme, t]);
 
   const tripTypeLabel = (type: TripType): string => {
     const map: Record<string, string> = {
@@ -385,6 +437,63 @@ export default function DashboardScreen() {
           {salary && (
             <SalaryDetailCard salary={salary} />
           )}
+
+          {/* Chart: hours per day */}
+          <View style={[s.card, { backgroundColor: theme.card }]}>
+            <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_chartHours}</Text>
+            {chartHoursData ? (
+              <BarChart
+                data={chartHoursData}
+                width={windowWidth - 64}
+                height={160}
+                yAxisLabel=""
+                yAxisSuffix=""
+                withInnerLines={false}
+                showValuesOnTopOfBars={false}
+                chartConfig={{
+                  backgroundGradientFrom: theme.card,
+                  backgroundGradientTo: theme.card,
+                  decimalPlaces: 1,
+                  color: (opacity = 1) => `${theme.primary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+                  labelColor: () => theme.textMute,
+                  propsForBackgroundLines: { stroke: theme.border },
+                }}
+                style={{ borderRadius: 8, marginLeft: -16 }}
+              />
+            ) : (
+              <View style={s.noChartBox}>
+                <Ionicons name="bar-chart-outline" size={28} color={theme.border} />
+                <Text style={[s.noChartText, { color: theme.textMute }]}>{t.dashboard_noChartData}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Chart: by trip type */}
+          <View style={[s.card, { backgroundColor: theme.card }]}>
+            <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_chartTypes}</Text>
+            {chartTypeData ? (
+              <PieChart
+                data={chartTypeData}
+                width={windowWidth - 64}
+                height={160}
+                chartConfig={{
+                  backgroundGradientFrom: theme.card,
+                  backgroundGradientTo: theme.card,
+                  color: (opacity = 1) => `rgba(0,0,0,${opacity})`,
+                  labelColor: () => theme.textDim,
+                }}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="8"
+                absolute
+              />
+            ) : (
+              <View style={s.noChartBox}>
+                <Ionicons name="pie-chart-outline" size={28} color={theme.border} />
+                <Text style={[s.noChartText, { color: theme.textMute }]}>{t.dashboard_noChartData}</Text>
+              </View>
+            )}
+          </View>
 
           {/* Recent trips */}
           <View style={[s.card, { backgroundColor: theme.card }]}>
@@ -843,4 +952,7 @@ const s = StyleSheet.create({
   monoLarge: { fontSize: 24, fontWeight: '700', fontFamily: 'monospace', marginTop: 4 },
 
   empty: { textAlign: 'center', marginTop: 40, fontSize: 15 },
+
+  noChartBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24, gap: 8 },
+  noChartText: { fontSize: 13 },
 });

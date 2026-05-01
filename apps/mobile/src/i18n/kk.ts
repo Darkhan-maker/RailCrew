@@ -353,6 +353,9 @@ export const kk: Strings = {
   calc_noRate: 'Параметрлерде тарифтік мөлшерлемені көрсетіңіз',
   calc_result: 'Есептеу мәліметтері',
   dashboard_calculator: 'Калькулятор',
+  dashboard_chartHours: 'Күн бойынша сағаттар',
+  dashboard_chartTypes: 'Түрлері бойынша сапарлар',
+  dashboard_noChartData: 'Диаграмма үшін деректер жоқ',
 
   settings_theme: 'Безендіру тақырыбы',
   settings_themeBlue: 'Көк',

@@ -366,6 +366,9 @@ export type Strings = {
   calc_noRate: string;
   calc_result: string;
   dashboard_calculator: string;
+  dashboard_chartHours: string;
+  dashboard_chartTypes: string;
+  dashboard_noChartData: string;
 
   settings_theme: string;
   settings_themeBlue: string;

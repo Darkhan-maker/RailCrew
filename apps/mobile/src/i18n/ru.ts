@@ -353,6 +353,9 @@ export const ru: Strings = {
   calc_noRate: 'Укажите тарифную ставку в Настройках',
   calc_result: 'Детализация расчёта',
   dashboard_calculator: 'Калькулятор',
+  dashboard_chartHours: 'Часы по дням',
+  dashboard_chartTypes: 'Поездки по типам',
+  dashboard_noChartData: 'Нет данных для графика',
 
   settings_theme: 'Тема оформления',
   settings_themeBlue: 'Синяя',
