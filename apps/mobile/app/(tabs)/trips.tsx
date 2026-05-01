@@ -499,8 +499,8 @@ export default function TripsScreen() {
 
   const emptyText = useMemo(() => {
     if (search.trim()) return `${t.trips_emptySearch} «${search.trim()}»`;
+    if (period === 'ALL') return hasActiveFilters ? t.trips_emptyFilter : t.trips_emptyAll;
     if (hasActiveFilters) return t.trips_emptyFilter;
-    if (period === 'ALL') return t.trips_emptyAll;
     return t.trips_emptyPeriod;
   }, [search, hasActiveFilters, period, t]);
 

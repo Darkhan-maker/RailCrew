@@ -1,16 +1,8 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Home, List, PlusCircle, Settings, User } from 'lucide-react-native';
 import { useLang } from '@/i18n';
 import { useTheme } from '@/theme';
-
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-
-function icon(active: IoniconName, inactive: IoniconName, size = 22) {
-  return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Ionicons name={focused ? active : inactive} size={size} color={color} />
-  );
-}
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -41,35 +33,35 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: t.nav_summary,
-          tabBarIcon: icon('home', 'home-outline'),
+          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="trips"
         options={{
           title: t.nav_trips,
-          tabBarIcon: icon('list', 'list-outline'),
+          tabBarIcon: ({ color }) => <List size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="add"
         options={{
           title: t.nav_add,
-          tabBarIcon: icon('add-circle', 'add-circle-outline', 28),
+          tabBarIcon: ({ color }) => <PlusCircle size={26} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: t.nav_settings,
-          tabBarIcon: icon('settings', 'settings-outline'),
+          tabBarIcon: ({ color }) => <Settings size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: t.nav_profile,
-          tabBarIcon: icon('person', 'person-outline'),
+          tabBarIcon: ({ color }) => <User size={22} color={color} />,
         }}
       />
     </Tabs>

@@ -104,7 +104,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
 
   syncFromServer: async () => {
     try {
-      const { items } = await tripsApi.list({ take: 200 });
+      const { items } = await tripsApi.list({ limit: 100 });
       await localTripsStorage.mergeFromServer(items);
       const trips = await localTripsStorage.getAll();
       set({ trips });
