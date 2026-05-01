@@ -14,7 +14,7 @@ import {
 } from '@/services/storage.service';
 import { TripType } from '@railcrew/contracts';
 import { formatDuration } from '@/utils/date';
-import { filterTripsByPeriod, getPeriodBounds } from '@/utils/period';
+import { filterTripsByPeriod, getPeriodBounds, splitTripByDay } from '@/utils/period';
 import { exportApi } from '@/services/api.service';
 import { useLang, pluralTrips, fmtDur } from '@/i18n';
 import { useTheme, Theme } from '@/theme';
@@ -24,20 +24,21 @@ type PeriodFilter = 'DAY' | 'WEEK' | 'MONTH';
 const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 const MONTH_SHORT_KK = ['қаң', 'ақп', 'нау', 'сәу', 'мам', 'мау', 'шіл', 'там', 'қыр', 'қаз', 'қар', 'жел'];
 
+const TYPE_COLORS: Record<string, string> = {
+  FREIGHT: '#F59E0B',
+  PASSENGER: '#3B82F6',
+  SHUNTING: '#10B981',
+  DEAD_RUN: '#EF4444',
+};
+
 function formatDateShort(isoDate: string, lang: string): string {
   const [y, m, d] = isoDate.split('-').map(Number);
   const months = lang === 'kk' ? MONTH_SHORT_KK : MONTH_SHORT;
   return `${d} ${months[m - 1]} ${y}`;
 }
 
-function typeColor(type: string, theme: Theme): string {
-  const map: Record<string, string> = {
-    FREIGHT: theme.primary,
-    PASSENGER: theme.success,
-    SHUNTING: theme.warning,
-    DEAD_RUN: theme.textMute,
-  };
-  return map[type] ?? theme.textMute;
+function typeColor(type: string): string {
+  return TYPE_COLORS[type] ?? '#888';
 }
 
 function calcDuration(sDate: string, sTime: string, eDate: string, eTime: string): number | null {
@@ -152,10 +153,16 @@ export default function DashboardScreen() {
     [trips, period],
   );
 
-  const totalMinutes = useMemo(
-    () => filtered.reduce((sum, tr) => sum + (tr.durationMinutes ?? 0), 0),
-    [filtered],
-  );
+  const totalMinutes = useMemo(() => {
+    const bounds = getPeriodBounds(period);
+    if (!bounds) return filtered.reduce((sum, tr) => sum + (tr.durationMinutes ?? 0), 0);
+    return filtered.reduce((sum, tr) => {
+      const segs = splitTripByDay(tr);
+      return sum + segs
+        .filter((s) => s.date >= bounds.from && s.date <= bounds.to)
+        .reduce((acc, s) => acc + s.hours * 60, 0);
+    }, 0);
+  }, [filtered, period]);
   const totalHours = Math.floor(totalMinutes / 60);
 
   const totalNightMinutes = useMemo(
@@ -242,50 +249,62 @@ export default function DashboardScreen() {
   }, [filtered]);
 
   const chartHoursData = useMemo(() => {
+    if (period === 'DAY') return null;
     const bounds = getPeriodBounds(period);
     if (!bounds || filtered.length === 0) return null;
     const { from, to } = bounds;
-    const start = new Date(from);
-    const end = new Date(to);
     const days: string[] = [];
-    const cur = new Date(start);
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const cur = new Date(fy, fm - 1, fd);
+    const [ty, tm, td] = to.split('-').map(Number);
+    const end = new Date(ty, tm - 1, td);
     while (cur <= end) {
-      days.push(cur.toISOString().slice(0, 10));
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      days.push(`${y}-${m}-${d}`);
       cur.setDate(cur.getDate() + 1);
     }
-    if (days.length > 31) return null;
     const hoursByDay: Record<string, number> = {};
     for (const d of days) hoursByDay[d] = 0;
     for (const tr of filtered) {
-      if (hoursByDay[tr.date] !== undefined) {
-        hoursByDay[tr.date] += (tr.durationMinutes ?? 0) / 60;
+      for (const seg of splitTripByDay(tr)) {
+        if (hoursByDay[seg.date] !== undefined) {
+          hoursByDay[seg.date] += seg.hours;
+        }
       }
     }
-    const hasData = Object.values(hoursByDay).some(h => h > 0);
+    const hasData = Object.values(hoursByDay).some((h) => h > 0);
     if (!hasData) return null;
+    const DAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const DAY_SHORT_KK = ['Жс', 'Дс', 'Сс', 'Ср', 'Бс', 'Жм', 'Сб'];
+    const dayShorts = lang === 'kk' ? DAY_SHORT_KK : DAY_SHORT;
     const labels: string[] = [];
     const data: number[] = [];
-    const months = lang === 'kk' ? MONTH_SHORT_KK : MONTH_SHORT;
-    for (const d of days) {
-      const [, m, day] = d.split('-').map(Number);
-      labels.push(days.length <= 7 ? `${day}` : days.length <= 14 ? (days.indexOf(d) % 2 === 0 ? `${day}` : '') : (days.indexOf(d) % 5 === 0 ? `${day}/${months[m - 1]}` : ''));
+    days.forEach((d, i) => {
+      const dt = new Date(d + 'T12:00:00');
+      if (period === 'WEEK') {
+        labels.push(dayShorts[dt.getDay()]);
+      } else {
+        labels.push(i % 5 === 0 ? `${dt.getDate()}` : '');
+      }
       data.push(Math.round(hoursByDay[d] * 10) / 10);
-    }
+    });
     return { labels, datasets: [{ data }] };
   }, [filtered, period, lang]);
 
   const chartTypeData = useMemo(() => {
     if (typeStats.length === 0) return null;
-    const COLORS: Record<string, string> = {
-      FREIGHT: theme.primary,
-      PASSENGER: theme.success,
-      SHUNTING: theme.warning,
-      DEAD_RUN: theme.textMute,
+    const typeLabels: Record<string, string> = {
+      FREIGHT: t.tripType_FREIGHT,
+      PASSENGER: t.tripType_PASSENGER,
+      SHUNTING: t.tripType_SHUNTING,
+      DEAD_RUN: t.tripType_DEAD_RUN,
     };
     return typeStats.map(([type, count]) => ({
-      name: ({ FREIGHT: t.tripType_FREIGHT, PASSENGER: t.tripType_PASSENGER, SHUNTING: t.tripType_SHUNTING, DEAD_RUN: t.tripType_DEAD_RUN } as Record<string, string>)[type] ?? type,
+      name: typeLabels[type] ?? type,
       population: count,
-      color: COLORS[type] ?? theme.textMute,
+      color: TYPE_COLORS[type] ?? theme.textMute,
       legendFontColor: theme.textDim,
       legendFontSize: 12,
     }));
@@ -438,55 +457,70 @@ export default function DashboardScreen() {
             <SalaryDetailCard salary={salary} />
           )}
 
-          {/* Chart: hours per day */}
-          <View style={[s.card, { backgroundColor: theme.card }]}>
-            <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_chartHours}</Text>
-            {chartHoursData ? (
-              <BarChart
-                data={chartHoursData}
-                width={windowWidth - 64}
-                height={160}
-                yAxisLabel=""
-                yAxisSuffix=""
-                withInnerLines={false}
-                showValuesOnTopOfBars={false}
-                chartConfig={{
-                  backgroundGradientFrom: theme.card,
-                  backgroundGradientTo: theme.card,
-                  decimalPlaces: 1,
-                  color: (opacity = 1) => `${theme.primary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-                  labelColor: () => theme.textMute,
-                  propsForBackgroundLines: { stroke: theme.border },
-                }}
-                style={{ borderRadius: 8, marginLeft: -16 }}
-              />
-            ) : (
-              <View style={s.noChartBox}>
-                <Ionicons name="bar-chart-outline" size={28} color={theme.border} />
-                <Text style={[s.noChartText, { color: theme.textMute }]}>{t.dashboard_noChartData}</Text>
-              </View>
-            )}
-          </View>
+          {/* Chart: hours per day (hidden for DAY period) */}
+          {period !== 'DAY' && (
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+              <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_chartHours}</Text>
+              {chartHoursData ? (
+                <BarChart
+                  data={chartHoursData}
+                  width={windowWidth - 64}
+                  height={200}
+                  yAxisLabel=""
+                  yAxisSuffix=""
+                  withInnerLines={false}
+                  showValuesOnTopOfBars={false}
+                  chartConfig={{
+                    backgroundGradientFrom: theme.card,
+                    backgroundGradientTo: theme.card,
+                    decimalPlaces: 1,
+                    color: (opacity = 1) => theme.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+                    labelColor: () => theme.textMute,
+                    propsForBackgroundLines: { stroke: theme.border },
+                  }}
+                  style={{ borderRadius: 8, marginLeft: -16 }}
+                />
+              ) : (
+                <View style={s.noChartBox}>
+                  <Ionicons name="bar-chart-outline" size={28} color={theme.border} />
+                  <Text style={[s.noChartText, { color: theme.textMute }]}>{t.dashboard_noChartData}</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Chart: by trip type */}
           <View style={[s.card, { backgroundColor: theme.card }]}>
             <Text style={[s.cardLabel, { color: theme.textMute }]}>{t.dashboard_chartTypes}</Text>
             {chartTypeData ? (
-              <PieChart
-                data={chartTypeData}
-                width={windowWidth - 64}
-                height={160}
-                chartConfig={{
-                  backgroundGradientFrom: theme.card,
-                  backgroundGradientTo: theme.card,
-                  color: (opacity = 1) => `rgba(0,0,0,${opacity})`,
-                  labelColor: () => theme.textDim,
-                }}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="8"
-                absolute
-              />
+              <>
+                <PieChart
+                  data={chartTypeData}
+                  width={windowWidth - 64}
+                  height={160}
+                  chartConfig={{
+                    backgroundGradientFrom: theme.card,
+                    backgroundGradientTo: theme.card,
+                    color: (opacity = 1) => `rgba(0,0,0,${opacity})`,
+                    labelColor: () => theme.textDim,
+                  }}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="8"
+                  hasLegend={false}
+                  absolute
+                />
+                <View style={s.pieLegend}>
+                  {chartTypeData.map((item) => (
+                    <View key={item.name} style={s.pieLegendItem}>
+                      <View style={[s.dot, { backgroundColor: item.color }]} />
+                      <Text style={[s.pieLegendLabel, { color: theme.textDim }]}>
+                        {item.name} ({item.population})
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </>
             ) : (
               <View style={s.noChartBox}>
                 <Ionicons name="pie-chart-outline" size={28} color={theme.border} />
@@ -571,7 +605,7 @@ export default function DashboardScreen() {
               {typeStats.map(([type, count]) => (
                 <View key={type} style={s.metricRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={[s.dot, { backgroundColor: typeColor(type, theme) }]} />
+                    <View style={[s.dot, { backgroundColor: typeColor(type) }]} />
                     <Text style={[s.metricLabel, { color: theme.textMute }]}>{tripTypeLabel(type as TripType)}</Text>
                   </View>
                   <Text style={[s.metricValue, { color: theme.text }]}>{count}</Text>
@@ -836,7 +870,7 @@ function TripRow({ trip, last, tripTypeLabel, lang }: {
   lang: string;
 }) {
   const { theme } = useTheme();
-  const color = typeColor(trip.tripType, theme);
+  const color = typeColor(trip.tripType);
 
   return (
     <View style={[s.tripRow, !last && { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
@@ -955,4 +989,7 @@ const s = StyleSheet.create({
 
   noChartBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24, gap: 8 },
   noChartText: { fontSize: 13 },
+  pieLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pieLegendLabel: { fontSize: 13 },
 });
