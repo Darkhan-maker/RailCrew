@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useTripsStore } from '@/store/trips.store';
@@ -306,16 +308,25 @@ export default function DashboardScreen() {
     >
       <View style={s.greetingRow}>
         <Text style={[s.greeting, { color: theme.text }]}>{greeting}</Text>
-        <TouchableOpacity
-          style={[s.exportMonthBtn, { borderColor: theme.primary }]}
-          onPress={handleExportPress}
-          disabled={exporting}
-          activeOpacity={0.75}
-        >
-          {exporting
-            ? <ActivityIndicator color={theme.primary} size="small" />
-            : <Text style={[s.exportMonthBtnText, { color: theme.primary }]}>{t.dashboard_exportMonth}</Text>}
-        </TouchableOpacity>
+        <View style={s.headerBtns}>
+          <TouchableOpacity
+            style={[s.calcBtn, { borderColor: theme.border }]}
+            onPress={() => router.push('/calculator')}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="calculator-outline" size={18} color={theme.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.exportMonthBtn, { borderColor: theme.primary }]}
+            onPress={handleExportPress}
+            disabled={exporting}
+            activeOpacity={0.75}
+          >
+            {exporting
+              ? <ActivityIndicator color={theme.primary} size="small" />
+              : <Text style={[s.exportMonthBtnText, { color: theme.primary }]}>{t.dashboard_exportMonth}</Text>}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Period tabs */}
@@ -749,9 +760,11 @@ const s = StyleSheet.create({
     marginTop: 48, marginBottom: 12,
   },
   greeting: { fontSize: 22, fontWeight: '700', flex: 1 },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12 },
+  calcBtn: { borderWidth: 1, borderRadius: 10, padding: 7 },
   exportMonthBtn: {
     borderWidth: 1, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 7, marginLeft: 12,
+    paddingHorizontal: 12, paddingVertical: 7,
   },
   exportMonthBtnText: { fontSize: 13, fontWeight: '600' },
 

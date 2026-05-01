@@ -356,6 +356,17 @@ export type Strings = {
   detail_iosDone: string;
   detail_notOptional: string;
   detail_notSpecified: string;
+  // Calculator
+  calc_title: string;
+  calc_totalHours: string;
+  calc_nightHours: string;
+  calc_holidayHours: string;
+  calc_overtimeHours: string;
+  calc_tripCount: string;
+  calc_noRate: string;
+  calc_result: string;
+  dashboard_calculator: string;
+
   settings_theme: string;
   settings_themeBlue: string;
   settings_themeGreen: string;
