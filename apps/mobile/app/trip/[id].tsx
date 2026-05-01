@@ -301,134 +301,102 @@ export default function TripDetailScreen() {
           <View style={cardStyle}>
             <SectionTitle theme={theme}>{t.detail_secRoute}</SectionTitle>
             <InfoRow theme={theme} label={t.detail_tripType} value={tripTypeLabel(trip.tripType)} />
-            {trip.trainNumber ? <InfoRow theme={theme} label={t.detail_trainNumber} value={trip.trainNumber} /> : null}
+            <InfoRow theme={theme} label={t.detail_trainNumber} value={trip.trainNumber ?? t.detail_notSpecified} dim={!trip.trainNumber} />
             <InfoRow theme={theme} label={t.detail_date} value={
               trip.endDate && trip.endDate !== trip.date
                 ? `${formatDateRu(trip.date)} → ${formatDateRu(trip.endDate!)}`
                 : formatDateRu(trip.date)
             } />
-            {trip.durationMinutes
-              ? <InfoRow theme={theme} label={t.detail_duration} value={fmtDur(trip.durationMinutes, t)} />
-              : null}
+            <InfoRow theme={theme} label={t.detail_duration} value={trip.durationMinutes ? fmtDur(trip.durationMinutes, t) : t.detail_notSpecified} dim={!trip.durationMinutes} />
           </View>
 
           {/* Train */}
-          {(trip.trainWeight != null || trip.axleCount != null) && (
-            <View style={cardStyle}>
-              <SectionTitle theme={theme}>{t.detail_secTrain}</SectionTitle>
-              {trip.trainWeight != null
-                ? <InfoRow theme={theme} label={t.detail_trainWeight} value={String(trip.trainWeight)} />
-                : null}
-              {trip.axleCount != null
-                ? <InfoRow theme={theme} label={t.detail_axleCount} value={String(trip.axleCount)} />
-                : null}
-            </View>
-          )}
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secTrain}</SectionTitle>
+            <InfoRow theme={theme} label={t.detail_trainWeight} value={trip.trainWeight != null ? String(trip.trainWeight) : t.detail_notSpecified} dim={trip.trainWeight == null} />
+            <InfoRow theme={theme} label={t.detail_axleCount} value={trip.axleCount != null ? String(trip.axleCount) : t.detail_notSpecified} dim={trip.axleCount == null} />
+          </View>
 
           {/* Loco */}
-          {(trip.locoModel || trip.locoNumber || trip.sectionCount != null) && (
-            <View style={cardStyle}>
-              <SectionTitle theme={theme}>
-                {t.detail_secLoco}{trip.sectionCount && trip.sectionCount > 1 ? ` · ${trip.sectionCount} сек.` : ''}
-              </SectionTitle>
-              {trip.locoModel ? <InfoRow theme={theme} label={t.detail_locoModel} value={trip.locoModel} /> : null}
-              {trip.locoNumber ? <InfoRow theme={theme} label={t.detail_locoNumber} value={trip.locoNumber} /> : null}
-              {trip.sectionCount != null
-                ? <InfoRow theme={theme} label={t.detail_sectionCount} value={String(trip.sectionCount)} />
-                : null}
-            </View>
-          )}
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>
+              {t.detail_secLoco}{trip.sectionCount && trip.sectionCount > 1 ? ` · ${trip.sectionCount} сек.` : ''}
+            </SectionTitle>
+            <InfoRow theme={theme} label={t.detail_locoModel} value={trip.locoModel ?? t.detail_notSpecified} dim={!trip.locoModel} />
+            <InfoRow theme={theme} label={t.detail_locoNumber} value={trip.locoNumber ?? t.detail_notSpecified} dim={!trip.locoNumber} />
+            <InfoRow theme={theme} label={t.detail_sectionCount} value={trip.sectionCount != null ? String(trip.sectionCount) : t.detail_notSpecified} dim={trip.sectionCount == null} />
+          </View>
 
           {/* Cycle */}
-          {hasCycle && (
-            <View style={cardStyle}>
-              <SectionTitle theme={theme}>{t.detail_secCycle}</SectionTitle>
-              {trip.appearanceTime && trip.appearanceDate && (
-                <CycleRow
-                  theme={theme}
-                  marker="▶"
-                  label={t.detail_appearance}
-                  datetime={formatShortDatetime(trip.appearanceDate, trip.appearanceTime)}
-                />
-              )}
-              {trip.handoverTime && trip.handoverDate && (
-                <CycleRow
-                  theme={theme}
-                  marker="■"
-                  label={t.detail_handover}
-                  datetime={formatShortDatetime(trip.handoverDate, trip.handoverTime)}
-                />
-              )}
-              {totalCycleMin !== null && totalCycleMin > 0 && (
-                <View style={[s.cycleTotalRow, { borderTopColor: theme.border }]}>
-                  <Text style={[s.cycleTotalLabel, { color: theme.textDim }]}>{t.detail_totalCycle}</Text>
-                  <Text style={[s.cycleTotalValue, { color: theme.success }]}>{fmtDur(totalCycleMin, t)}</Text>
-                </View>
-              )}
-            </View>
-          )}
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secCycle}</SectionTitle>
+            {trip.appearanceTime && trip.appearanceDate
+              ? <CycleRow theme={theme} marker="▶" label={t.detail_appearance} datetime={formatShortDatetime(trip.appearanceDate, trip.appearanceTime)} />
+              : <InfoRow theme={theme} label={t.detail_appearance} value={t.detail_notSpecified} dim />
+            }
+            {trip.handoverTime && trip.handoverDate
+              ? <CycleRow theme={theme} marker="■" label={t.detail_handover} datetime={formatShortDatetime(trip.handoverDate, trip.handoverTime)} />
+              : <InfoRow theme={theme} label={t.detail_handover} value={t.detail_notSpecified} dim />
+            }
+            {totalCycleMin !== null && totalCycleMin > 0 && (
+              <View style={[s.cycleTotalRow, { borderTopColor: theme.border }]}>
+                <Text style={[s.cycleTotalLabel, { color: theme.textDim }]}>{t.detail_totalCycle}</Text>
+                <Text style={[s.cycleTotalValue, { color: theme.success }]}>{fmtDur(totalCycleMin, t)}</Text>
+              </View>
+            )}
+          </View>
 
           {/* Electricity */}
-          {hasElec && (
-            <View style={cardStyle}>
-              <SectionTitle theme={theme}>
-                {t.detail_secElec}{trip.sectionCount && trip.sectionCount > 1 ? ` (${trip.sectionCount} сек.)` : ''}
-              </SectionTitle>
-              {hasSectionMeters
-                ? trip.sectionMeters!.map((sm, i) => {
-                    const cons = sm.start !== undefined && sm.end !== undefined && sm.end >= sm.start
-                      ? sm.end - sm.start
-                      : null;
-                    return (
-                      <View key={i} style={i > 0 ? { marginTop: 8 } : undefined}>
-                        {(trip.sectionCount ?? 1) > 1 && (
-                          <Text style={[s.sectionLabel, { color: theme.textMute }]}>{t.detail_section} {i + 1}</Text>
-                        )}
-                        {sm.start !== undefined
-                          ? <InfoRow theme={theme} label={t.detail_elecStart} value={`${sm.start} кВт·ч`} />
-                          : null}
-                        {sm.end !== undefined
-                          ? <InfoRow theme={theme} label={t.detail_elecEnd} value={`${sm.end} кВт·ч`} />
-                          : null}
-                        {cons !== null
-                          ? <InfoRow theme={theme} label={t.detail_elecConsumption} value={`${cons.toFixed(0)} кВт·ч`} />
-                          : null}
-                      </View>
-                    );
-                  })
-                : <>
-                    {trip.meterStart !== undefined
-                      ? <InfoRow theme={theme} label={t.detail_elecMeterStart} value={`${trip.meterStart} кВт·ч`} />
-                      : null}
-                    {trip.meterEnd !== undefined
-                      ? <InfoRow theme={theme} label={t.detail_elecMeterEnd} value={`${trip.meterEnd} кВт·ч`} />
-                      : null}
-                    {trip.meterStart !== undefined && trip.meterEnd !== undefined && trip.meterEnd >= trip.meterStart
-                      ? <InfoRow theme={theme} label={t.detail_elecConsumption} value={`${(trip.meterEnd - trip.meterStart).toFixed(0)} кВт·ч`} />
-                      : null}
-                  </>
-              }
-              {hasSectionMeters && (trip.sectionCount ?? 1) > 1 && (() => {
-                const sms = trip.sectionMeters!;
-                const allValid = sms.every((sm) => sm.start !== undefined && sm.end !== undefined && sm.end >= sm.start);
-                if (!allValid) return null;
-                const total = sms.reduce((sum, sm) => sum + (sm.end! - sm.start!), 0);
-                return (
-                  <View style={[s.cycleTotalRow, { borderTopColor: theme.border }]}>
-                    <Text style={[s.cycleTotalLabel, { color: theme.textDim }]}>{t.detail_elecTotal}</Text>
-                    <Text style={[s.cycleTotalValue, { color: theme.success }]}>{total.toFixed(0)} кВт·ч</Text>
-                  </View>
-                );
-              })()}
-            </View>
-          )}
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>
+              {t.detail_secElec}{trip.sectionCount && trip.sectionCount > 1 ? ` (${trip.sectionCount} сек.)` : ''}
+            </SectionTitle>
+            {hasSectionMeters
+              ? trip.sectionMeters!.map((sm, i) => {
+                  const cons = sm.start !== undefined && sm.end !== undefined && sm.end >= sm.start
+                    ? sm.end - sm.start
+                    : null;
+                  return (
+                    <View key={i} style={i > 0 ? { marginTop: 8 } : undefined}>
+                      {(trip.sectionCount ?? 1) > 1 && (
+                        <Text style={[s.sectionLabel, { color: theme.textMute }]}>{t.detail_section} {i + 1}</Text>
+                      )}
+                      <InfoRow theme={theme} label={t.detail_elecStart} value={sm.start !== undefined ? `${sm.start} кВт·ч` : t.detail_notSpecified} dim={sm.start === undefined} />
+                      <InfoRow theme={theme} label={t.detail_elecEnd} value={sm.end !== undefined ? `${sm.end} кВт·ч` : t.detail_notSpecified} dim={sm.end === undefined} />
+                      {cons !== null && <InfoRow theme={theme} label={t.detail_elecConsumption} value={`${cons.toFixed(0)} кВт·ч`} />}
+                    </View>
+                  );
+                })
+              : <>
+                  <InfoRow theme={theme} label={t.detail_elecMeterStart} value={trip.meterStart !== undefined ? `${trip.meterStart} кВт·ч` : t.detail_notSpecified} dim={trip.meterStart === undefined} />
+                  <InfoRow theme={theme} label={t.detail_elecMeterEnd} value={trip.meterEnd !== undefined ? `${trip.meterEnd} кВт·ч` : t.detail_notSpecified} dim={trip.meterEnd === undefined} />
+                  {trip.meterStart !== undefined && trip.meterEnd !== undefined && trip.meterEnd >= trip.meterStart && (
+                    <InfoRow theme={theme} label={t.detail_elecConsumption} value={`${(trip.meterEnd - trip.meterStart).toFixed(0)} кВт·ч`} />
+                  )}
+                </>
+            }
+            {hasSectionMeters && (trip.sectionCount ?? 1) > 1 && (() => {
+              const sms = trip.sectionMeters!;
+              const allValid = sms.every((sm) => sm.start !== undefined && sm.end !== undefined && sm.end >= sm.start);
+              if (!allValid) return null;
+              const total = sms.reduce((sum, sm) => sum + (sm.end! - sm.start!), 0);
+              return (
+                <View style={[s.cycleTotalRow, { borderTopColor: theme.border }]}>
+                  <Text style={[s.cycleTotalLabel, { color: theme.textDim }]}>{t.detail_elecTotal}</Text>
+                  <Text style={[s.cycleTotalValue, { color: theme.success }]}>{total.toFixed(0)} кВт·ч</Text>
+                </View>
+              );
+            })()}
+          </View>
 
-          {trip.notes ? (
-            <View style={cardStyle}>
-              <SectionTitle theme={theme}>{t.detail_secNotes}</SectionTitle>
-              <Text style={[s.notesText, { color: theme.textMute }]}>{trip.notes}</Text>
-            </View>
-          ) : null}
+          {/* Notes */}
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secNotes}</SectionTitle>
+            {trip.notes
+              ? <Text style={[s.notesText, { color: theme.textMute }]}>{trip.notes}</Text>
+              : <Text style={[s.notesText, { color: theme.textMute, fontStyle: 'italic' }]}>{t.detail_notSpecified}</Text>
+            }
+          </View>
 
           <TouchableOpacity
             style={[s.deleteBtn, { borderColor: theme.danger }]}
@@ -750,11 +718,11 @@ function SectionTitle({ children, theme }: { children: React.ReactNode; theme: T
   return <Text style={[s.sectionTitle, { color: theme.text }]}>{children}</Text>;
 }
 
-function InfoRow({ label, value, theme }: { label: string; value: string; theme: Theme }) {
+function InfoRow({ label, value, dim, theme }: { label: string; value: string; dim?: boolean; theme: Theme }) {
   return (
     <View style={s.infoRow}>
       <Text style={[s.infoLabel, { color: theme.textDim }]}>{label}</Text>
-      <Text style={[s.infoValue, { color: theme.text }]}>{value}</Text>
+      <Text style={[s.infoValue, { color: dim ? theme.textMute : theme.text, fontStyle: dim ? 'italic' : 'normal' }]}>{value}</Text>
     </View>
   );
 }

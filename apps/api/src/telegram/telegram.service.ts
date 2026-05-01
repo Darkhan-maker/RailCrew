@@ -103,7 +103,9 @@ export function parseTripText(text: string): ParsedTrip | null {
   // Route: destination must be letters only (no digits) to avoid "Жарык 29 апреля"
   let routeFrom = '';
   let routeTo = '';
-  const routeMatch = t.match(/^([А-ЯЁа-яёA-Za-z]+(?:[\s-][А-ЯЁа-яёA-Za-z]+)*?)\s*[-–—]\s*([А-ЯЁа-яёA-Za-z]+(?:[\s-][А-ЯЁа-яёA-Za-z]+)?)/u);
+  // Each word in a station name must start with an uppercase letter (proper noun).
+  // This prevents "сегодня"/"завтра" etc. from being captured as part of routeTo.
+  const routeMatch = t.match(/^([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z]*(?:[\s-][А-ЯЁA-Z][А-ЯЁа-яёA-Za-z]*)*?)\s*[-–—]\s*([А-ЯЁA-Z][А-ЯЁа-яёA-Za-z]*(?:[\s-][А-ЯЁA-Z][А-ЯЁа-яёA-Za-z]*)?)/u);
   if (routeMatch) {
     routeFrom = routeMatch[1].trim();
     routeTo = routeMatch[2].trim();

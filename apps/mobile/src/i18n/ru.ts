@@ -343,6 +343,7 @@ export const ru: Strings = {
   detail_deleteError: 'Не удалось удалить поездку',
   detail_iosDone: 'Готово',
   detail_notOptional: 'Необязательно',
+  detail_notSpecified: 'не указано',
   settings_theme: 'Тема оформления',
   settings_themeBlue: 'Синяя',
   settings_themeGreen: 'Зелёная',
