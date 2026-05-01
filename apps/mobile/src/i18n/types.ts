@@ -89,6 +89,8 @@ export type Strings = {
   trips_filtersActive: string;
   trips_search: string;
   trips_all: string;
+  trips_period: string;
+  trips_loco: string;
   trips_allTypes: string;
   trips_allLocos: string;
   trips_unsynced: string;

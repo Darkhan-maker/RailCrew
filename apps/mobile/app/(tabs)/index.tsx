@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useTripsStore } from '@/store/trips.store';
@@ -12,6 +11,7 @@ import {
 } from '@/services/storage.service';
 import { TripType } from '@railcrew/contracts';
 import { formatDuration } from '@/utils/date';
+import { filterTripsByPeriod, getPeriodBounds } from '@/utils/period';
 import { exportApi } from '@/services/api.service';
 import { useLang, pluralTrips, fmtDur } from '@/i18n';
 import { useTheme, Theme } from '@/theme';
@@ -35,33 +35,6 @@ function typeColor(type: string, theme: Theme): string {
     DEAD_RUN: theme.textMute,
   };
   return map[type] ?? theme.textMute;
-}
-
-function toLocalDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function getPeriodBounds(period: PeriodFilter): { from: string; to: string } {
-  const now = new Date();
-  switch (period) {
-    case 'DAY': {
-      const today = toLocalDateStr(now);
-      return { from: today, to: today };
-    }
-    case 'WEEK':
-      return {
-        from: toLocalDateStr(startOfWeek(now, { weekStartsOn: 1 })),
-        to: toLocalDateStr(endOfWeek(now, { weekStartsOn: 1 })),
-      };
-    case 'MONTH':
-      return {
-        from: toLocalDateStr(startOfMonth(now)),
-        to: toLocalDateStr(endOfMonth(now)),
-      };
-  }
 }
 
 function calcDuration(sDate: string, sTime: string, eDate: string, eTime: string): number | null {
@@ -170,13 +143,10 @@ export default function DashboardScreen() {
     localSettingsStorage.get().then(setSettings);
   }, []);
 
-  const filtered = useMemo(() => {
-    const { from, to } = getPeriodBounds(period);
-    return trips.filter((tr) => {
-      const d = (tr.date ?? '').slice(0, 10);
-      return d >= from && d <= to;
-    });
-  }, [trips, period]);
+  const filtered = useMemo(
+    () => filterTripsByPeriod(trips, period),
+    [trips, period],
+  );
 
   const totalMinutes = useMemo(
     () => filtered.reduce((sum, tr) => sum + (tr.durationMinutes ?? 0), 0),
@@ -279,7 +249,7 @@ export default function DashboardScreen() {
 
   const greeting = profile?.firstName ? `${t.dashboard_helloPrefix}${profile.firstName}` : t.dashboard_titleFallback;
 
-  const { from: monthFrom, to: monthTo } = getPeriodBounds('MONTH');
+  const { from: monthFrom, to: monthTo } = getPeriodBounds('MONTH')!;
 
   function handleExportMonth(fmt: 'pdf' | 'xlsx') {
     Alert.alert(

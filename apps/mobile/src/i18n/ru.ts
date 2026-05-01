@@ -83,6 +83,8 @@ export const ru: Strings = {
   trips_filtersActive: 'Фильтры ●',
   trips_search: 'Поиск по маршруту, локомотиву, заметкам...',
   trips_all: 'Все',
+  trips_period: 'Период',
+  trips_loco: 'Локомотив',
   trips_allTypes: 'Все типы',
   trips_allLocos: 'Все лок.',
   trips_unsynced: 'Не синхр.',

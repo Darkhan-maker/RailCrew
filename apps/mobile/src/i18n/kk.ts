@@ -83,6 +83,8 @@ export const kk: Strings = {
   trips_filtersActive: 'Сүзгілер ●',
   trips_search: 'Бағыт, локомотив, жазбалар бойынша іздеу...',
   trips_all: 'Барлығы',
+  trips_period: 'Кезең',
+  trips_loco: 'Локомотив',
   trips_allTypes: 'Барлық түрлер',
   trips_allLocos: 'Барлық лок.',
   trips_unsynced: 'Синхрон. емес',

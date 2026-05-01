@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, Alert, TextInput, Modal,
 } from 'react-native';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
@@ -11,44 +11,53 @@ import { useTripsStore } from '@/store/trips.store';
 import { TripType, TripTypeLabelMap } from '@railcrew/contracts';
 import { LocalTrip } from '@/services/storage.service';
 import { formatDateRu } from '@/utils/date';
+import { filterTripsByPeriod, getPeriodBounds, PeriodKey } from '@/utils/period';
 import { useLang, pluralTrips, fmtDur, Strings } from '@/i18n';
 import { useTheme, Theme } from '@/theme';
 
-// ─── Period filter ────────────────────────────────────────────────────────────
-
-type PeriodFilter = 'ALL' | 'DAY' | 'WEEK' | 'MONTH';
-
-function toLocalDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function getPeriodBounds(period: PeriodFilter): { from: string; to: string } | null {
-  if (period === 'ALL') return null;
-  const now = new Date();
-  switch (period) {
-    case 'DAY': {
-      const today = toLocalDateStr(now);
-      return { from: today, to: today };
-    }
-    case 'WEEK':
-      return {
-        from: toLocalDateStr(startOfWeek(now, { weekStartsOn: 1 })),
-        to: toLocalDateStr(endOfWeek(now, { weekStartsOn: 1 })),
-      };
-    case 'MONTH':
-      return {
-        from: toLocalDateStr(startOfMonth(now)),
-        to: toLocalDateStr(endOfMonth(now)),
-      };
-  }
-}
-
-// ─── Trip type chips ──────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 const TRIP_TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
+
+interface FilterState {
+  period: PeriodKey;
+  tripType: TripType | null;
+  locoFilter: string | null;
+  routeFrom: string;
+  routeTo: string;
+  dateFrom: string;
+  dateTo: string;
+  unsyncedOnly: boolean;
+  multiSectionOnly: boolean;
+}
+
+const DEFAULT_FILTERS: FilterState = {
+  period: 'MONTH',
+  tripType: null,
+  locoFilter: null,
+  routeFrom: '',
+  routeTo: '',
+  dateFrom: '',
+  dateTo: '',
+  unsyncedOnly: false,
+  multiSectionOnly: false,
+};
+
+function isFilterActive(f: FilterState): boolean {
+  return (
+    f.period !== 'ALL' ||
+    f.tripType !== null ||
+    f.locoFilter !== null ||
+    f.routeFrom !== '' ||
+    f.routeTo !== '' ||
+    f.dateFrom !== '' ||
+    f.dateTo !== '' ||
+    f.unsyncedOnly ||
+    f.multiSectionOnly
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function tripTypeColor(type: string, theme: Theme): string {
   const map: Record<string, string> = {
@@ -133,49 +142,31 @@ async function exportToCSV(trips: LocalTrip[], periodLabel: string, t: Strings) 
   });
 }
 
-// ─── Filter modal ─────────────────────────────────────────────────────────────
-
-interface FilterModalProps {
-  visible: boolean;
-  onClose: () => void;
-  routeFrom: string;
-  routeTo: string;
-  dateFrom: string;
-  dateTo: string;
-  tripType: TripType | null;
-  onApply: (params: {
-    routeFrom: string;
-    routeTo: string;
-    dateFrom: string;
-    dateTo: string;
-    tripType: TripType | null;
-  }) => void;
-}
+// ─── Filter Modal (bottom sheet) ──────────────────────────────────────────────
 
 function FilterModal({
-  visible, onClose,
-  routeFrom: initRouteFrom, routeTo: initRouteTo,
-  dateFrom: initDateFrom, dateTo: initDateTo,
-  tripType: initTripType,
+  visible,
+  onClose,
+  locoModels,
+  initial,
   onApply,
-}: FilterModalProps) {
+}: {
+  visible: boolean;
+  onClose: () => void;
+  locoModels: string[];
+  initial: FilterState;
+  onApply: (state: FilterState) => void;
+}) {
   const { t } = useLang();
   const { theme } = useTheme();
-  const [routeFrom, setRouteFrom] = useState(initRouteFrom);
-  const [routeTo, setRouteTo] = useState(initRouteTo);
-  const [dateFrom, setDateFrom] = useState(initDateFrom);
-  const [dateTo, setDateTo] = useState(initDateTo);
-  const [tripType, setTripType] = useState<TripType | null>(initTripType);
+  const [state, setState] = useState<FilterState>(initial);
 
   useEffect(() => {
-    if (visible) {
-      setRouteFrom(initRouteFrom);
-      setRouteTo(initRouteTo);
-      setDateFrom(initDateFrom);
-      setDateTo(initDateTo);
-      setTripType(initTripType);
-    }
+    if (visible) setState(initial);
   }, [visible]);
+
+  const set = <K extends keyof FilterState>(key: K, value: FilterState[K]) =>
+    setState((prev) => ({ ...prev, [key]: value }));
 
   const tripTypeLabel = (type: TripType): string => ({
     FREIGHT: t.tripType_FREIGHT,
@@ -184,18 +175,26 @@ function FilterModal({
     DEAD_RUN: t.tripType_DEAD_RUN,
   })[type] ?? type;
 
+  const PERIOD_OPTS: { label: string; value: PeriodKey }[] = [
+    { label: t.trips_all, value: 'ALL' },
+    { label: t.dashboard_today, value: 'DAY' },
+    { label: t.dashboard_week, value: 'WEEK' },
+    { label: t.dashboard_month, value: 'MONTH' },
+  ];
+
   function handleApply() {
-    onApply({ routeFrom, routeTo, dateFrom, dateTo, tripType });
+    onApply(state);
     onClose();
   }
 
   function handleReset() {
-    setRouteFrom('');
-    setRouteTo('');
-    setDateFrom('');
-    setDateTo('');
-    setTripType(null);
+    setState(DEFAULT_FILTERS);
   }
+
+  const chipBase = { backgroundColor: theme.surface, borderColor: theme.border };
+  const chipActive = { backgroundColor: theme.primary, borderColor: theme.primary };
+  const chipTextBase = { color: theme.textMute };
+  const chipTextActive = { color: '#fff', fontWeight: '600' as const };
 
   const inputStyle = [ms.input, {
     backgroundColor: theme.surface,
@@ -210,78 +209,156 @@ function FilterModal({
           <View style={[ms.handle, { backgroundColor: theme.border }]} />
           <Text style={[ms.title, { color: theme.text }]}>{t.trips_modalTitle}</Text>
 
-          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_stationFrom}</Text>
-          <TextInput
-            style={inputStyle}
-            placeholder={t.trips_exFrom}
-            placeholderTextColor={theme.textMute}
-            value={routeFrom}
-            onChangeText={setRouteFrom}
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_stationTo}</Text>
-          <TextInput
-            style={inputStyle}
-            placeholder={t.trips_exTo}
-            placeholderTextColor={theme.textMute}
-            value={routeTo}
-            onChangeText={setRouteTo}
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
+            {/* Period */}
+            <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_period}</Text>
+            <View style={ms.chipWrap}>
+              {PERIOD_OPTS.map((p) => (
+                <TouchableOpacity
+                  key={p.value}
+                  style={[ms.chip, chipBase, state.period === p.value && chipActive]}
+                  onPress={() => set('period', p.value)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[ms.chipText, chipTextBase, state.period === p.value && chipTextActive]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_dateFrom}</Text>
-          <TextInput
-            style={inputStyle}
-            placeholder="2025-01-01"
-            placeholderTextColor={theme.textMute}
-            value={dateFrom}
-            onChangeText={setDateFrom}
-            keyboardType="numbers-and-punctuation"
-            autoCorrect={false}
-          />
-
-          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_dateTo}</Text>
-          <TextInput
-            style={inputStyle}
-            placeholder="2025-12-31"
-            placeholderTextColor={theme.textMute}
-            value={dateTo}
-            onChangeText={setDateTo}
-            keyboardType="numbers-and-punctuation"
-            autoCorrect={false}
-          />
-
-          <Text style={[ms.label, { color: theme.textDim }]}>{t.trips_tripType}</Text>
-          <View style={ms.chipWrap}>
-            <TouchableOpacity
-              style={[ms.chip, { backgroundColor: theme.surface, borderColor: theme.border },
-                tripType === null && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-              onPress={() => setTripType(null)}
-              activeOpacity={0.75}
-            >
-              <Text style={[ms.chipText, { color: theme.textMute },
-                tripType === null && { color: '#fff', fontWeight: '600' }]}>
-                {t.trips_all}
-              </Text>
-            </TouchableOpacity>
-            {TRIP_TYPES.map((tripT) => (
+            {/* Trip type */}
+            <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_tripType}</Text>
+            <View style={ms.chipWrap}>
               <TouchableOpacity
-                key={tripT}
-                style={[ms.chip, { backgroundColor: theme.surface, borderColor: theme.border },
-                  tripType === tripT && { backgroundColor: theme.primary, borderColor: theme.primary }]}
-                onPress={() => setTripType(tripType === tripT ? null : tripT)}
+                style={[ms.chip, chipBase, state.tripType === null && chipActive]}
+                onPress={() => set('tripType', null)}
                 activeOpacity={0.75}
               >
-                <Text style={[ms.chipText, { color: theme.textMute },
-                  tripType === tripT && { color: '#fff', fontWeight: '600' }]}>
-                  {tripTypeLabel(tripT)}
+                <Text style={[ms.chipText, chipTextBase, state.tripType === null && chipTextActive]}>
+                  {t.trips_all}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+              {TRIP_TYPES.map((tripT) => (
+                <TouchableOpacity
+                  key={tripT}
+                  style={[ms.chip, chipBase, state.tripType === tripT && chipActive]}
+                  onPress={() => set('tripType', state.tripType === tripT ? null : tripT)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[ms.chipText, chipTextBase, state.tripType === tripT && chipTextActive]}>
+                    {tripTypeLabel(tripT)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Loco model */}
+            {locoModels.length > 1 && (
+              <>
+                <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_loco}</Text>
+                <View style={ms.chipWrap}>
+                  <TouchableOpacity
+                    style={[ms.chip, chipBase, state.locoFilter === null && chipActive]}
+                    onPress={() => set('locoFilter', null)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[ms.chipText, chipTextBase, state.locoFilter === null && chipTextActive]}>
+                      {t.trips_allLocos}
+                    </Text>
+                  </TouchableOpacity>
+                  {locoModels.map((model) => (
+                    <TouchableOpacity
+                      key={model}
+                      style={[ms.chip, chipBase, state.locoFilter === model && chipActive]}
+                      onPress={() => set('locoFilter', state.locoFilter === model ? null : model)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[ms.chipText, chipTextBase, state.locoFilter === model && chipTextActive]}>
+                        {model}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Route */}
+            <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_stationFrom}</Text>
+            <TextInput
+              style={inputStyle}
+              placeholder={t.trips_exFrom}
+              placeholderTextColor={theme.textMute}
+              value={state.routeFrom}
+              onChangeText={(v) => set('routeFrom', v)}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+
+            <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_stationTo}</Text>
+            <TextInput
+              style={inputStyle}
+              placeholder={t.trips_exTo}
+              placeholderTextColor={theme.textMute}
+              value={state.routeTo}
+              onChangeText={(v) => set('routeTo', v)}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+
+            {/* Date range */}
+            <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_dateFrom}</Text>
+            <TextInput
+              style={inputStyle}
+              placeholder="2025-01-01"
+              placeholderTextColor={theme.textMute}
+              value={state.dateFrom}
+              onChangeText={(v) => set('dateFrom', v)}
+              keyboardType="numbers-and-punctuation"
+              autoCorrect={false}
+            />
+
+            <Text style={[ms.sectionLabel, { color: theme.textDim }]}>{t.trips_dateTo}</Text>
+            <TextInput
+              style={inputStyle}
+              placeholder="2025-12-31"
+              placeholderTextColor={theme.textMute}
+              value={state.dateTo}
+              onChangeText={(v) => set('dateTo', v)}
+              keyboardType="numbers-and-punctuation"
+              autoCorrect={false}
+            />
+
+            {/* Toggle filters */}
+            <View style={ms.toggleRow}>
+              <TouchableOpacity
+                style={[ms.toggleChip,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  state.unsyncedOnly && { backgroundColor: theme.warning, borderColor: theme.warning }]}
+                onPress={() => set('unsyncedOnly', !state.unsyncedOnly)}
+                activeOpacity={0.75}
+              >
+                <Text style={[ms.toggleText, { color: theme.textMute },
+                  state.unsyncedOnly && { color: theme.bg, fontWeight: '600' }]}>
+                  {t.trips_unsynced}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[ms.toggleChip,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  state.multiSectionOnly && { backgroundColor: theme.warning, borderColor: theme.warning }]}
+                onPress={() => set('multiSectionOnly', !state.multiSectionOnly)}
+                activeOpacity={0.75}
+              >
+                <Text style={[ms.toggleText, { color: theme.textMute },
+                  state.multiSectionOnly && { color: theme.bg, fontWeight: '600' }]}>
+                  {t.trips_multiSection}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+          </ScrollView>
 
           <View style={ms.actions}>
             <TouchableOpacity
@@ -312,55 +389,21 @@ export default function TripsScreen() {
   const { t } = useLang();
   const { theme } = useTheme();
 
-  const PERIOD_LABELS = useMemo(() => [
-    { label: t.trips_all, value: 'ALL' as PeriodFilter },
-    { label: t.dashboard_today, value: 'DAY' as PeriodFilter },
-    { label: t.dashboard_week, value: 'WEEK' as PeriodFilter },
-    { label: t.dashboard_month, value: 'MONTH' as PeriodFilter },
-  ], [t]);
-
-  const tripTypeLabel = (type: TripType): string => ({
-    FREIGHT: t.tripType_FREIGHT,
-    PASSENGER: t.tripType_PASSENGER,
-    SHUNTING: t.tripType_SHUNTING,
-    DEAD_RUN: t.tripType_DEAD_RUN,
-  })[type] ?? type;
-
-  const [period, setPeriod] = useState<PeriodFilter>('MONTH');
   const [search, setSearch] = useState('');
-  const [tripTypeFilter, setTripTypeFilter] = useState<TripType | null>(null);
-  const [locoFilter, setLocoFilter] = useState<string | null>(null);
-  const [unsyncedOnly, setUnsyncedOnly] = useState(false);
-  const [multiSectionOnly, setMultiSectionOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
-
   const [refreshing, setRefreshing] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [modalRouteFrom, setModalRouteFrom] = useState('');
-  const [modalRouteTo, setModalRouteTo] = useState('');
-  const [modalDateFrom, setModalDateFrom] = useState('');
-  const [modalDateTo, setModalDateTo] = useState('');
-  const [modalTripType, setModalTripType] = useState<TripType | null>(null);
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
-  const hasModalFilters = !!(modalRouteFrom || modalRouteTo || modalDateFrom || modalDateTo || modalTripType);
+  const hasActiveFilters = isFilterActive(filters);
 
-  const hasActiveFilters =
-    period !== 'MONTH' || search !== '' || tripTypeFilter !== null ||
-    locoFilter !== null || unsyncedOnly || multiSectionOnly || hasModalFilters;
-
-  function clearFilters() {
-    setSearch('');
-    setTripTypeFilter(null);
-    setLocoFilter(null);
-    setUnsyncedOnly(false);
-    setMultiSectionOnly(false);
-    setPeriod('MONTH');
-    setModalRouteFrom('');
-    setModalRouteTo('');
-    setModalDateFrom('');
-    setModalDateTo('');
-    setModalTripType(null);
-  }
+  const locoModels = useMemo(() => {
+    const models = new Set<string>();
+    for (const tr of trips) {
+      if (tr.locoModel) models.add(tr.locoModel);
+    }
+    return Array.from(models).sort();
+  }, [trips]);
 
   useEffect(() => {
     loadLocal();
@@ -379,16 +422,10 @@ export default function TripsScreen() {
   }
 
   const filtered = useMemo(() => {
-    let result = trips;
+    let result = filterTripsByPeriod(trips, filters.period);
 
-    const bounds = getPeriodBounds(period);
-    if (bounds) result = result.filter((tr) => {
-      const d = (tr.date ?? '').slice(0, 10);
-      return d >= bounds.from && d <= bounds.to;
-    });
-
-    if (modalDateFrom) result = result.filter((tr) => (tr.date ?? '').slice(0, 10) >= modalDateFrom);
-    if (modalDateTo) result = result.filter((tr) => (tr.date ?? '').slice(0, 10) <= modalDateTo);
+    if (filters.dateFrom) result = result.filter((tr) => (tr.date ?? '').slice(0, 10) >= filters.dateFrom);
+    if (filters.dateTo) result = result.filter((tr) => (tr.date ?? '').slice(0, 10) <= filters.dateTo);
 
     const q = search.trim().toLowerCase();
     if (q) {
@@ -402,42 +439,41 @@ export default function TripsScreen() {
       );
     }
 
-    if (modalRouteFrom) {
-      const rf = modalRouteFrom.trim().toLowerCase();
+    if (filters.routeFrom) {
+      const rf = filters.routeFrom.trim().toLowerCase();
       result = result.filter((tr) => tr.routeFrom.toLowerCase().includes(rf));
     }
-    if (modalRouteTo) {
-      const rt = modalRouteTo.trim().toLowerCase();
+    if (filters.routeTo) {
+      const rt = filters.routeTo.trim().toLowerCase();
       result = result.filter((tr) => tr.routeTo.toLowerCase().includes(rt));
     }
 
-    const effectiveTripType = modalTripType ?? tripTypeFilter;
-    if (effectiveTripType) result = result.filter((tr) => tr.tripType === effectiveTripType);
-
-    if (locoFilter) result = result.filter((tr) => tr.locoModel === locoFilter);
-    if (unsyncedOnly) result = result.filter((tr) => !tr.syncedAt);
-    if (multiSectionOnly) result = result.filter((tr) => (tr.sectionCount ?? 1) > 1);
+    if (filters.tripType) result = result.filter((tr) => tr.tripType === filters.tripType);
+    if (filters.locoFilter) result = result.filter((tr) => tr.locoModel === filters.locoFilter);
+    if (filters.unsyncedOnly) result = result.filter((tr) => !tr.syncedAt);
+    if (filters.multiSectionOnly) result = result.filter((tr) => (tr.sectionCount ?? 1) > 1);
 
     return result;
-  }, [trips, period, search, tripTypeFilter, locoFilter, unsyncedOnly, multiSectionOnly,
-    modalRouteFrom, modalRouteTo, modalDateFrom, modalDateTo, modalTripType]);
+  }, [trips, filters, search]);
 
   const totalMinutes = useMemo(
     () => filtered.reduce((sum, tr) => sum + (tr.durationMinutes ?? 0), 0),
     [filtered],
   );
 
-  const locoModels = useMemo(() => {
-    const models = new Set<string>();
-    for (const tr of trips) {
-      if (tr.locoModel) models.add(tr.locoModel);
-    }
-    return Array.from(models).sort();
-  }, [trips]);
+  const tripTypeLabel = (type: TripType): string => ({
+    FREIGHT: t.tripType_FREIGHT,
+    PASSENGER: t.tripType_PASSENGER,
+    SHUNTING: t.tripType_SHUNTING,
+    DEAD_RUN: t.tripType_DEAD_RUN,
+  })[type] ?? type;
 
   async function handleExport() {
     setExporting(true);
-    const periodLabel = PERIOD_LABELS.find((p) => p.value === period)?.label.toLowerCase() ?? 'all';
+    const bounds = getPeriodBounds(filters.period);
+    const periodLabel = bounds
+      ? `${bounds.from}_${bounds.to}`
+      : format(new Date(), 'yyyy-MM-dd');
     try {
       await exportToCSV(filtered, periodLabel, t);
     } catch {
@@ -496,7 +532,7 @@ export default function TripsScreen() {
             <Text style={[s.metaExtra, { color: theme.textMute }]} numberOfLines={1}>{extraParts.join('  ·  ')}</Text>
           )}
           <View style={s.cardFooter}>
-            <Text style={[s.chip, { backgroundColor: theme.surface, color: theme.primary }]}>
+            <Text style={[s.typeChip, { backgroundColor: theme.surface, color: theme.primary }]}>
               {tripTypeLabel(item.tripType)}
             </Text>
             <View style={s.cardFooterRight}>
@@ -513,15 +549,9 @@ export default function TripsScreen() {
 
   const emptyText = useMemo(() => {
     if (search.trim()) return `${t.trips_emptySearch} «${search.trim()}»`;
-    if (period === 'ALL') return hasActiveFilters ? t.trips_emptyFilter : t.trips_emptyAll;
     if (hasActiveFilters) return t.trips_emptyFilter;
-    return t.trips_emptyPeriod;
-  }, [search, hasActiveFilters, period, t]);
-
-  const chipBase = { backgroundColor: theme.card, borderColor: theme.border };
-  const chipActive = { backgroundColor: theme.primary, borderColor: theme.primary };
-  const chipTextBase = { color: theme.textMute };
-  const chipTextActive = { color: '#fff', fontWeight: '600' as const };
+    return t.trips_emptyAll;
+  }, [search, hasActiveFilters, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg, padding: 16 }}>
@@ -532,13 +562,13 @@ export default function TripsScreen() {
         <View style={s.topRowActions}>
           <TouchableOpacity
             style={[s.filterBtn, { borderColor: theme.border },
-              hasModalFilters && { borderColor: theme.primary, backgroundColor: theme.primaryDim }]}
+              hasActiveFilters && { borderColor: theme.primary, backgroundColor: theme.primaryDim }]}
             onPress={() => setFilterModalVisible(true)}
             activeOpacity={0.75}
           >
             <Text style={[s.filterBtnText, { color: theme.textMute },
-              hasModalFilters && { color: theme.primary }]}>
-              {hasModalFilters ? t.trips_filtersActive : t.trips_filters}
+              hasActiveFilters && { color: theme.primary }]}>
+              {hasActiveFilters ? t.trips_filtersActive : t.trips_filters}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -571,124 +601,6 @@ export default function TripsScreen() {
         />
       </View>
 
-      {/* Period chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={s.chipScrollView}
-        contentContainerStyle={s.chipRow}
-      >
-        {PERIOD_LABELS.map((p) => (
-          <TouchableOpacity
-            key={p.value}
-            style={[s.filterChip, chipBase, period === p.value && chipActive]}
-            onPress={() => setPeriod(p.value)}
-            activeOpacity={0.75}
-          >
-            <Text style={[s.filterChipText, chipTextBase, period === p.value && chipTextActive]}>
-              {p.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Trip type chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={s.chipScrollView}
-        contentContainerStyle={s.chipRow}
-      >
-        <TouchableOpacity
-          style={[s.filterChip, chipBase, tripTypeFilter === null && chipActive]}
-          onPress={() => setTripTypeFilter(null)}
-          activeOpacity={0.75}
-        >
-          <Text style={[s.filterChipText, chipTextBase, tripTypeFilter === null && chipTextActive]}>
-            {t.trips_allTypes}
-          </Text>
-        </TouchableOpacity>
-        {TRIP_TYPES.map((tripT) => (
-          <TouchableOpacity
-            key={tripT}
-            style={[s.filterChip, chipBase, tripTypeFilter === tripT && chipActive]}
-            onPress={() => setTripTypeFilter(tripTypeFilter === tripT ? null : tripT)}
-            activeOpacity={0.75}
-          >
-            <Text style={[s.filterChipText, chipTextBase, tripTypeFilter === tripT && chipTextActive]}>
-              {tripTypeLabel(tripT)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Locomotive model chips */}
-      {locoModels.length > 1 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.chipScrollView}
-          contentContainerStyle={s.chipRow}
-        >
-          <TouchableOpacity
-            style={[s.filterChip, chipBase, locoFilter === null && chipActive]}
-            onPress={() => setLocoFilter(null)}
-            activeOpacity={0.75}
-          >
-            <Text style={[s.filterChipText, chipTextBase, locoFilter === null && chipTextActive]}>
-              {t.trips_allLocos}
-            </Text>
-          </TouchableOpacity>
-          {locoModels.map((model) => (
-            <TouchableOpacity
-              key={model}
-              style={[s.filterChip, chipBase, locoFilter === model && chipActive]}
-              onPress={() => setLocoFilter(locoFilter === model ? null : model)}
-              activeOpacity={0.75}
-            >
-              <Text style={[s.filterChipText, chipTextBase, locoFilter === model && chipTextActive]}>
-                {model}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Toggle row */}
-      <View style={s.toggleRow}>
-        <TouchableOpacity
-          style={[s.toggleChip, { backgroundColor: theme.card, borderColor: theme.border },
-            unsyncedOnly && { backgroundColor: theme.warning, borderColor: theme.warning }]}
-          onPress={() => setUnsyncedOnly((v) => !v)}
-          activeOpacity={0.75}
-        >
-          <Text style={[s.toggleChipText, { color: theme.textMute },
-            unsyncedOnly && { color: theme.bg, fontWeight: '600' }]}>
-            {t.trips_unsynced}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.toggleChip, { backgroundColor: theme.card, borderColor: theme.border },
-            multiSectionOnly && { backgroundColor: theme.warning, borderColor: theme.warning }]}
-          onPress={() => setMultiSectionOnly((v) => !v)}
-          activeOpacity={0.75}
-        >
-          <Text style={[s.toggleChipText, { color: theme.textMute },
-            multiSectionOnly && { color: theme.bg, fontWeight: '600' }]}>
-            {t.trips_multiSection}
-          </Text>
-        </TouchableOpacity>
-        {hasActiveFilters && (
-          <TouchableOpacity
-            style={[s.clearBtn, { borderColor: theme.danger }]}
-            onPress={clearFilters}
-            activeOpacity={0.75}
-          >
-            <Text style={[s.clearBtnText, { color: theme.danger }]}>{t.trips_clear}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
       {/* Summary row */}
       {filtered.length > 0 && (
         <View style={s.summary}>
@@ -718,22 +630,13 @@ export default function TripsScreen() {
         />
       )}
 
-      {/* Filter modal */}
+      {/* Filter bottom sheet */}
       <FilterModal
         visible={filterModalVisible}
         onClose={() => setFilterModalVisible(false)}
-        routeFrom={modalRouteFrom}
-        routeTo={modalRouteTo}
-        dateFrom={modalDateFrom}
-        dateTo={modalDateTo}
-        tripType={modalTripType}
-        onApply={({ routeFrom, routeTo, dateFrom, dateTo, tripType }) => {
-          setModalRouteFrom(routeFrom);
-          setModalRouteTo(routeTo);
-          setModalDateFrom(dateFrom);
-          setModalDateTo(dateTo);
-          setModalTripType(tripType);
-        }}
+        locoModels={locoModels}
+        initial={filters}
+        onApply={setFilters}
       />
     </View>
   );
@@ -759,24 +662,11 @@ const s = StyleSheet.create({
   },
   exportBtnText: { fontSize: 13, fontWeight: '600' },
 
-  searchRow: { marginBottom: 10 },
+  searchRow: { marginBottom: 8 },
   searchInput: {
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
     fontSize: 14, borderWidth: 1,
   },
-
-  chipScrollView: { flexGrow: 0, marginBottom: 8 },
-  chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
-  filterChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
-  },
-  filterChipText: { fontSize: 13 },
-
-  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10, alignItems: 'center' },
-  toggleChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  toggleChipText: { fontSize: 12 },
-  clearBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  clearBtnText: { fontSize: 12 },
 
   summary: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -801,7 +691,7 @@ const s = StyleSheet.create({
   metaExtra: { fontSize: 12, marginTop: 3 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   cardFooterRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  chip: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  typeChip: { fontSize: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   elecText: { fontSize: 12 },
   duration: { fontSize: 16, fontWeight: '600' },
   empty: { textAlign: 'center', marginTop: 60, fontSize: 16 },
@@ -811,15 +701,21 @@ const s = StyleSheet.create({
 
 const ms = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
-  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 36 },
+  sheet: {
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, paddingBottom: 36, maxHeight: '90%',
+  },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
-  label: { fontSize: 13, marginBottom: 6, marginTop: 12 },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  sectionLabel: { fontSize: 12, fontWeight: '600', marginTop: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, borderWidth: 1 },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   chipText: { fontSize: 13 },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  toggleChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  toggleText: { fontSize: 13 },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 20 },
   resetBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   resetBtnText: { fontSize: 15, fontWeight: '600' },
   applyBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
