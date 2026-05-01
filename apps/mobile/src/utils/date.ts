@@ -2,8 +2,15 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-f
 import { ru } from 'date-fns/locale';
 import { SummaryQuery, PeriodType } from '@railcrew/contracts';
 
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function todayISO(): string {
-  return format(new Date(), 'yyyy-MM-dd');
+  return localDateStr(new Date());
 }
 
 export function buildSummaryQuery(periodType: PeriodType): SummaryQuery {
@@ -27,8 +34,8 @@ export function buildSummaryQuery(periodType: PeriodType): SummaryQuery {
 
   return {
     periodType,
-    from: format(from, 'yyyy-MM-dd'),
-    to: format(to, 'yyyy-MM-dd'),
+    from: localDateStr(from),
+    to: localDateStr(to),
   };
 }
 
@@ -39,5 +46,6 @@ export function formatDuration(minutes: number): string {
 }
 
 export function formatDateRu(iso: string): string {
-  return format(new Date(iso), 'd MMMM yyyy', { locale: ru });
+  const [y, m, d] = iso.split('-').map(Number);
+  return format(new Date(y, m - 1, d), 'd MMMM yyyy', { locale: ru });
 }

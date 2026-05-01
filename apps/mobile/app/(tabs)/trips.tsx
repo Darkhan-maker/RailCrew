@@ -18,20 +18,31 @@ import { useTheme, Theme } from '@/theme';
 
 type PeriodFilter = 'ALL' | 'DAY' | 'WEEK' | 'MONTH';
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function getPeriodBounds(period: PeriodFilter): { from: string; to: string } | null {
   if (period === 'ALL') return null;
   const now = new Date();
-  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
   switch (period) {
-    case 'DAY':
-      return { from: fmt(now), to: fmt(now) };
+    case 'DAY': {
+      const today = toLocalDateStr(now);
+      return { from: today, to: today };
+    }
     case 'WEEK':
       return {
-        from: fmt(startOfWeek(now, { weekStartsOn: 1 })),
-        to: fmt(endOfWeek(now, { weekStartsOn: 1 })),
+        from: toLocalDateStr(startOfWeek(now, { weekStartsOn: 1 })),
+        to: toLocalDateStr(endOfWeek(now, { weekStartsOn: 1 })),
       };
     case 'MONTH':
-      return { from: fmt(startOfMonth(now)), to: fmt(endOfMonth(now)) };
+      return {
+        from: toLocalDateStr(startOfMonth(now)),
+        to: toLocalDateStr(endOfMonth(now)),
+      };
   }
 }
 
@@ -371,10 +382,13 @@ export default function TripsScreen() {
     let result = trips;
 
     const bounds = getPeriodBounds(period);
-    if (bounds) result = result.filter((tr) => tr.date >= bounds.from && tr.date <= bounds.to);
+    if (bounds) result = result.filter((tr) => {
+      const d = (tr.date ?? '').slice(0, 10);
+      return d >= bounds.from && d <= bounds.to;
+    });
 
-    if (modalDateFrom) result = result.filter((tr) => tr.date >= modalDateFrom);
-    if (modalDateTo) result = result.filter((tr) => tr.date <= modalDateTo);
+    if (modalDateFrom) result = result.filter((tr) => (tr.date ?? '').slice(0, 10) >= modalDateFrom);
+    if (modalDateTo) result = result.filter((tr) => (tr.date ?? '').slice(0, 10) <= modalDateTo);
 
     const q = search.trim().toLowerCase();
     if (q) {

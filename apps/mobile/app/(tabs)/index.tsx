@@ -37,16 +37,30 @@ function typeColor(type: string, theme: Theme): string {
   return map[type] ?? theme.textMute;
 }
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function getPeriodBounds(period: PeriodFilter): { from: string; to: string } {
   const now = new Date();
-  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
   switch (period) {
-    case 'DAY': return { from: fmt(now), to: fmt(now) };
-    case 'WEEK': return {
-      from: fmt(startOfWeek(now, { weekStartsOn: 1 })),
-      to: fmt(endOfWeek(now, { weekStartsOn: 1 })),
-    };
-    case 'MONTH': return { from: fmt(startOfMonth(now)), to: fmt(endOfMonth(now)) };
+    case 'DAY': {
+      const today = toLocalDateStr(now);
+      return { from: today, to: today };
+    }
+    case 'WEEK':
+      return {
+        from: toLocalDateStr(startOfWeek(now, { weekStartsOn: 1 })),
+        to: toLocalDateStr(endOfWeek(now, { weekStartsOn: 1 })),
+      };
+    case 'MONTH':
+      return {
+        from: toLocalDateStr(startOfMonth(now)),
+        to: toLocalDateStr(endOfMonth(now)),
+      };
   }
 }
 
@@ -158,7 +172,10 @@ export default function DashboardScreen() {
 
   const filtered = useMemo(() => {
     const { from, to } = getPeriodBounds(period);
-    return trips.filter((tr) => tr.date >= from && tr.date <= to);
+    return trips.filter((tr) => {
+      const d = (tr.date ?? '').slice(0, 10);
+      return d >= from && d <= to;
+    });
   }, [trips, period]);
 
   const totalMinutes = useMemo(
