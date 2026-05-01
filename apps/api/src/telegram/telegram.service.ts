@@ -18,6 +18,10 @@ function parseMonth(word: string): number | null {
   return null;
 }
 
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function parseDate(text: string): string | null {
   // "7 апреля", "15.04", "15.04.2025", "07.04"
   const full = text.match(/(\d{1,2})[.\-\/](\d{1,2})(?:[.\-\/](\d{4}))?/);
@@ -35,6 +39,10 @@ function parseDate(text: string): string | null {
       const year = new Date().getFullYear();
       return `${year}-${month.toString().padStart(2, '0')}-${day}`;
     }
+  }
+  if (/\bсегодня\b/iu.test(text)) return isoDate(new Date());
+  if (/\bзавтра\b/iu.test(text)) {
+    const d = new Date(); d.setDate(d.getDate() + 1); return isoDate(d);
   }
   return null;
 }
@@ -63,13 +71,13 @@ function parseTripType(text: string): TripType {
 }
 
 function parseLocoModel(text: string): { locoModel?: string; locoNumber?: string } {
-  // Matches: "ВЛ80 569", "ВЛ80С-569", "2ТЭ116 569", "ТЭП70 №012"
-  const m = text.match(/([А-ЯA-Z0-9]{2,}(?:[А-ЯA-Zа-яa-z]?[-]?\d*)?)\s*[№#]?\s*(\d{1,5})/u);
-  if (m) {
-    return { locoModel: m[1], locoNumber: m[2] };
-  }
-  const modelOnly = text.match(/\b([А-ЯA-Z]{2,}(?:\d+)?[А-ЯA-Z]?)\b/u);
-  if (modelOnly) return { locoModel: modelOnly[1] };
+  // Series: optional leading digits + uppercase Cyrillic/Latin + alphanumeric mix (e.g. ВЛ80, ВЛ80С, KZ8A, 2ТЭ10М)
+  // Number: 3-5 digits (loco number)
+  // Dash separator first, then space separator
+  const dashMatch = text.match(/\b((?:\d+)?[А-ЯЁA-Z][А-ЯЁа-яёA-Za-z0-9]*)[-–](\d{3,5})\b/u);
+  if (dashMatch) return { locoModel: dashMatch[1], locoNumber: dashMatch[2] };
+  const spaceMatch = text.match(/\b((?:\d+)?[А-ЯЁA-Z][А-ЯЁа-яёA-Za-z0-9]*)\s+(\d{3,5})\b/u);
+  if (spaceMatch) return { locoModel: spaceMatch[1], locoNumber: spaceMatch[2] };
   return {};
 }
 
@@ -121,20 +129,28 @@ export function parseTripText(text: string): ParsedTrip | null {
   const явкаMatch = t.match(/(?:явк[аи]|отправл|выезд)\s+(\d{1,2}[:\-]\d{2})/iu);
   if (явкаMatch) startTime = parseTime(явкаMatch[1]);
 
-  // "Сдача 30 апреля 3:00" — multi-day with date before time
-  const сдачаDateMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2})\s+([а-яёА-ЯЁ]+)\s+(\d{1,2}[:\-]\d{2})/iu);
-  if (сдачаDateMatch) {
-    endTime = parseTime(сдачаDateMatch[3]);
-    const hdMonth = parseMonth(сдачаDateMatch[2]);
-    if (hdMonth) {
-      const hdDay = сдачаDateMatch[1].padStart(2, '0');
-      const hdYear = new Date().getFullYear();
-      handoverDate = `${hdYear}-${hdMonth.toString().padStart(2, '0')}-${hdDay}`;
-    }
+  // "Сдача завтра 02:15" — next day with keyword
+  const сдачаTomorrowMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+завтра\s+(\d{1,2}[:\-]\d{2})/iu);
+  if (сдачаTomorrowMatch) {
+    endTime = parseTime(сдачаTomorrowMatch[1]);
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    handoverDate = isoDate(d);
   } else {
-    // "Сдача 3:00" — same day
-    const сдачаMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2}[:\-]\d{2})/iu);
-    if (сдачаMatch) endTime = parseTime(сдачаMatch[1]);
+    // "Сдача 30 апреля 3:00" — multi-day with date before time
+    const сдачаDateMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2})\s+([а-яёА-ЯЁ]+)\s+(\d{1,2}[:\-]\d{2})/iu);
+    if (сдачаDateMatch) {
+      endTime = parseTime(сдачаDateMatch[3]);
+      const hdMonth = parseMonth(сдачаDateMatch[2]);
+      if (hdMonth) {
+        const hdDay = сдачаDateMatch[1].padStart(2, '0');
+        const hdYear = new Date().getFullYear();
+        handoverDate = `${hdYear}-${hdMonth.toString().padStart(2, '0')}-${hdDay}`;
+      }
+    } else {
+      // "Сдача 3:00" — same day
+      const сдачаMatch = t.match(/(?:сдач[аи]|прибыт|заезд|приезд)\s+(\d{1,2}[:\-]\d{2})/iu);
+      if (сдачаMatch) endTime = parseTime(сдачаMatch[1]);
+    }
   }
 
   // Fallback: find all HH:MM in text

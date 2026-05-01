@@ -181,6 +181,9 @@ export type Strings = {
   add_errCheckpointIn: string;
   add_errMeters: string;
   add_iosDone: string;
+  add_saveDraft: string;
+  add_step: string;
+  add_of: string;
 
   // Settings
   settings_title: string;

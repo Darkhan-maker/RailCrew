@@ -147,6 +147,29 @@ export default function AddTripScreen() {
   const [settings, setSettings] = useState<LocalSettings | null>(null);
   const { addTrip } = useTripsStore();
 
+  // Collapsible sections — 1, 2, 3 open by default; 4–7 collapsed
+  const [openSections, setOpenSections] = useState<Set<number>>(new Set([1, 2, 3]));
+
+  function toggleSection(step: number) {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(step)) next.delete(step);
+      else next.add(step);
+      return next;
+    });
+  }
+
+  const currentStep = openSections.size > 0 ? Math.max(...Array.from(openSections)) : 1;
+
+  const isFormReady = !!(
+    fields.routeFrom?.trim() &&
+    fields.routeTo?.trim() &&
+    fields.tripType &&
+    appearanceTime &&
+    handoverTime &&
+    !timeError
+  );
+
   useEffect(() => {
     localRoutesStorage.getAll().then(setRoutes);
     localSettingsStorage.get().then((s) => {
@@ -384,6 +407,46 @@ export default function AddTripScreen() {
     }
   }
 
+  async function handleSaveDraft() {
+    setSaving(true);
+    try {
+      const sm0 = sectionMeters[0];
+      const draftDto: LocalCreateTripDto = {
+        routeFrom: fields.routeFrom?.trim() || '',
+        routeTo: fields.routeTo?.trim() || '',
+        tripType: fields.tripType ?? 'FREIGHT',
+        date: appearanceDate,
+        status: 'DRAFT',
+        startTime: appearanceTime || undefined,
+        endTime: handoverTime || undefined,
+        durationMinutes: totalCycleMin ?? undefined,
+        locoModel: extended.locoModel || undefined,
+        locoNumber: extended.locoNumber || undefined,
+        trainNumber: extended.trainNumber || undefined,
+        trainWeight: extended.trainWeight ? parseFloat(extended.trainWeight) : undefined,
+        axleCount: extended.axleCount ? parseInt(extended.axleCount, 10) : undefined,
+        sectionCount,
+        sectionMeters: sectionMeters.map((sm) => ({
+          start: sm.start ? parseFloat(sm.start) : undefined,
+          end: sm.end ? parseFloat(sm.end) : undefined,
+        })),
+        meterStart: sm0?.start ? parseFloat(sm0.start) : undefined,
+        meterEnd: sm0?.end ? parseFloat(sm0.end) : undefined,
+        appearanceDate: appearanceTime ? appearanceDate : undefined,
+        appearanceTime: appearanceTime || undefined,
+        handoverDate: handoverTime ? handoverDate : undefined,
+        handoverTime: handoverTime || undefined,
+        notes: userNotes.trim() || undefined,
+      };
+      await addTrip(draftDto, false);
+      router.replace('/(tabs)/trips');
+    } catch {
+      Alert.alert(t.common_error, 'Не удалось сохранить черновик');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const inputStyle = [s.input, {
     backgroundColor: theme.surface, color: theme.text, borderColor: theme.border,
   }];
@@ -395,6 +458,16 @@ export default function AddTripScreen() {
       contentContainerStyle={{ paddingBottom: 120 }}
     >
       <Text style={[s.header, { color: theme.text }]}>{t.add_title}</Text>
+
+      {/* ─── Step indicator ──────────────────────────────── */}
+      <View style={s.stepIndicator}>
+        <Text style={[s.stepText, { color: theme.textDim }]}>
+          {t.add_step} {currentStep} {t.add_of} 7
+        </Text>
+        <View style={[s.progressBar, { backgroundColor: theme.border }]}>
+          <View style={[s.progressFill, { backgroundColor: theme.primary, width: `${Math.round((currentStep / 7) * 100)}%` as unknown as number }]} />
+        </View>
+      </View>
 
       {/* ─── Шаблоны ─────────────────────────────────────── */}
       {routes.length > 0 && (
@@ -421,7 +494,7 @@ export default function AddTripScreen() {
       )}
 
       {/* ─── 1: Маршрут ──────────────────────────────────── */}
-      <Section theme={theme} title={t.add_secRoute} step={1}>
+      <Section theme={theme} title={t.add_secRoute} step={1} isOpen={openSections.has(1)} onToggle={() => toggleSection(1)}>
         <View style={s.routeHeader}>
           <Label theme={theme} style={{ marginTop: 0 }}>{t.add_stations}</Label>
           <TouchableOpacity onPress={handleSaveTemplate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -477,7 +550,7 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 2: Состав поезда ────────────────────────────── */}
-      <Section theme={theme} title={t.add_secTrain} step={2}>
+      <Section theme={theme} title={t.add_secTrain} step={2} isOpen={openSections.has(2)} onToggle={() => toggleSection(2)}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_trainWeight}</Label>
@@ -506,7 +579,7 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 3: Локомотив ────────────────────────────────── */}
-      <Section theme={theme} title={t.add_secLoco} step={3}>
+      <Section theme={theme} title={t.add_secLoco} step={3} isOpen={openSections.has(3)} onToggle={() => toggleSection(3)}>
         <View style={s.row}>
           <View style={{ flex: 2 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_locoModel}</Label>
@@ -549,7 +622,7 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 4: Явка ─────────────────────────────────────── */}
-      <Section theme={theme} title={t.add_secAppearance} step={4}>
+      <Section theme={theme} title={t.add_secAppearance} step={4} isOpen={openSections.has(4)} onToggle={() => toggleSection(4)}>
         <Label theme={theme}>{t.add_appearanceType}</Label>
         <View style={s.chipRow}>
           {(['HOME', 'TURNAROUND'] as AppearanceType[]).map((aType) => (
@@ -603,7 +676,7 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 5: Сдача ────────────────────────────────────── */}
-      <Section theme={theme} title={t.add_secHandover} step={5}>
+      <Section theme={theme} title={t.add_secHandover} step={5} isOpen={openSections.has(5)} onToggle={() => toggleSection(5)}>
         <View style={s.row}>
           <View style={{ flex: 1.2 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_handoverDate}</Label>
@@ -636,7 +709,7 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 6: Электроэнергия ───────────────────────────── */}
-      <Section theme={theme} title={t.add_secElec} step={6}>
+      <Section theme={theme} title={t.add_secElec} step={6} isOpen={openSections.has(6)} onToggle={() => toggleSection(6)}>
         {sectionMeters.map((sm, i) => (
           <View key={i}>
             {sectionCount > 1 && (
@@ -709,7 +782,7 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 7: Проследование КП ─────────────────────────── */}
-      <Section theme={theme} title={t.add_secCheckpoint} step={7}>
+      <Section theme={theme} title={t.add_secCheckpoint} step={7} isOpen={openSections.has(7)} onToggle={() => toggleSection(7)}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_checkpointOut}</Label>
@@ -778,13 +851,37 @@ export default function AddTripScreen() {
         />
       </Section>
 
-      {/* ─── Сохранить ───────────────────────────────────── */}
+      {/* ─── Заполнить позже ─────────────────────────────── */}
       <TouchableOpacity
-        style={[s.btnPrimary, { backgroundColor: theme.primary }, saving && { opacity: 0.5 }]}
+        style={[s.btnSecondary, { borderColor: theme.border }]}
+        onPress={handleSaveDraft}
+        disabled={saving}
+      >
+        <Text style={[s.btnSecondaryText, { color: theme.textDim }]}>{t.add_saveDraft}</Text>
+      </TouchableOpacity>
+
+      {/* ─── Сохранить поездку ───────────────────────────── */}
+      <TouchableOpacity
+        style={[
+          s.btnPrimary,
+          isFormReady
+            ? { backgroundColor: theme.primary }
+            : { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border },
+          saving && { opacity: 0.5 },
+        ]}
         onPress={handleSave}
         disabled={saving}
       >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnPrimaryText}>{t.add_save}</Text>}
+        {saving ? (
+          <ActivityIndicator color={isFormReady ? '#fff' : theme.textMute} />
+        ) : (
+          <View style={s.btnRow}>
+            {isFormReady && <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />}
+            <Text style={[s.btnPrimaryText, { color: isFormReady ? '#fff' : theme.textMute }]}>
+              {t.add_save}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* ─── DateTimePicker ──────────────────────────────── */}
@@ -823,20 +920,44 @@ export default function AddTripScreen() {
   );
 }
 
-function Section({ title, step, theme, children }: { title?: string; step?: number; theme: Theme; children: React.ReactNode }) {
+function Section({
+  title, step, theme, children, isOpen, onToggle,
+}: {
+  title?: string; step?: number; theme: Theme; children: React.ReactNode;
+  isOpen?: boolean; onToggle?: () => void;
+}) {
+  const collapsible = step !== undefined && onToggle !== undefined;
+  const showContent = !collapsible || isOpen;
+
   return (
     <View style={[s.card, { backgroundColor: theme.card }]}>
       {title ? (
-        <View style={[s.sectionHeader, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity
+          style={[s.sectionHeader, {
+            borderBottomColor: showContent ? theme.border : 'transparent',
+            borderBottomWidth: showContent ? 1 : 0,
+            paddingBottom: showContent ? 12 : 0,
+            marginBottom: showContent ? 4 : 0,
+          }]}
+          onPress={collapsible ? onToggle : undefined}
+          activeOpacity={collapsible ? 0.7 : 1}
+        >
           {step !== undefined && (
-            <View style={[s.stepBadge, { backgroundColor: theme.primaryDark }]}>
+            <View style={[s.stepBadge, { backgroundColor: showContent ? theme.primaryDark : theme.textMute }]}>
               <Text style={s.stepBadgeText}>{step}</Text>
             </View>
           )}
-          <Text style={[s.sectionTitle, { color: theme.text }]}>{title}</Text>
-        </View>
+          <Text style={[s.sectionTitle, { color: theme.text, flex: 1 }]}>{title}</Text>
+          {collapsible && (
+            <Ionicons
+              name={isOpen ? 'chevron-up-outline' : 'chevron-down-outline'}
+              size={16}
+              color={theme.textMute}
+            />
+          )}
+        </TouchableOpacity>
       ) : null}
-      {children}
+      {showContent ? children : null}
     </View>
   );
 }
@@ -871,12 +992,16 @@ function PickerBtn({
 
 const s = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 16 },
-  header: { fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
+  header: { fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 12 },
+
+  stepIndicator: { marginBottom: 16 },
+  stepText: { fontSize: 13, fontWeight: '500', marginBottom: 6 },
+  progressBar: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: 4, borderRadius: 2 },
 
   card: { borderRadius: 14, padding: 16, marginBottom: 12 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingBottom: 12, marginBottom: 4, borderBottomWidth: 1,
   },
   stepBadge: {
     width: 22, height: 22, borderRadius: 11,
@@ -927,8 +1052,11 @@ const s = StyleSheet.create({
   templateSub: { fontSize: 12, marginTop: 2 },
   removeText: { fontSize: 14, padding: 4 },
 
+  btnRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  btnSecondary: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4, marginBottom: 8, borderWidth: 1 },
+  btnSecondaryText: { fontSize: 15, fontWeight: '500' },
   btnPrimary: { borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
-  btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  btnPrimaryText: { fontSize: 16, fontWeight: '600' },
   iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
   iosSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
   iosSheetHeader: {

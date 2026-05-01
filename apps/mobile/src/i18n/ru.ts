@@ -174,6 +174,9 @@ export const ru: Strings = {
   add_errCheckpointIn: 'Проследование КП при заходе должно быть числом',
   add_errMeters: 'Ошибка счётчиков',
   add_iosDone: 'Готово',
+  add_saveDraft: 'Заполнить позже',
+  add_step: 'Шаг',
+  add_of: 'из',
 
   settings_title: 'Настройки',
   settings_timezone: 'Часовой пояс',

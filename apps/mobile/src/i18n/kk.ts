@@ -174,6 +174,9 @@ export const kk: Strings = {
   add_errCheckpointIn: 'Кіру кезіндегі КП сан болуы керек',
   add_errMeters: 'Счётчик қатесі',
   add_iosDone: 'Дайын',
+  add_saveDraft: 'Кейін толтыру',
+  add_step: 'Қадам',
+  add_of: '/',
 
   settings_title: 'Параметрлер',
   settings_timezone: 'Уақыт белдеуі',
