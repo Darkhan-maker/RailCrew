@@ -16,6 +16,7 @@ import { LocalTrip, LocalCreateTripDto } from '@/services/storage.service';
 import { TripType, UpdateTripDtoSchema } from '@railcrew/contracts';
 import { formatDateRu } from '@/utils/date';
 import { useLang, fmtDur } from '@/i18n';
+import { useTheme, Theme } from '@/theme';
 
 function formatShortDatetime(date: string, time: string): string {
   try {
@@ -47,6 +48,7 @@ export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { trips, updateTrip, deleteTrip } = useTripsStore();
   const { t } = useLang();
+  const { theme } = useTheme();
   const [trip, setTrip] = useState<LocalTrip | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -250,7 +252,17 @@ export default function TripDetailScreen() {
   ) : null;
 
   if (!trip) {
-    return <ActivityIndicator color="#3b82f6" style={{ flex: 1, backgroundColor: '#0f172a' }} />;
+    return <ActivityIndicator color={theme.primary} style={{ flex: 1, backgroundColor: theme.bg }} />;
+  }
+
+  function pickerModeLabel(mode: PickerMode): string {
+    switch (mode) {
+      case 'appearanceDate': return t.detail_appearanceDate;
+      case 'appearanceTime': return t.detail_appearanceTime;
+      case 'handoverDate': return t.detail_handoverDate;
+      case 'handoverTime': return t.detail_handoverTime;
+      default: return '';
+    }
   }
 
   const totalCycleMin = trip.appearanceTime && trip.handoverTime && trip.appearanceDate && trip.handoverDate
@@ -263,79 +275,77 @@ export default function TripDetailScreen() {
     trip.sectionMeters.some((sm) => sm.start !== undefined || sm.end !== undefined);
   const hasElec = hasSectionMeters || trip.meterStart !== undefined || trip.meterEnd !== undefined;
 
-  function pickerModeLabel(mode: PickerMode): string {
-    switch (mode) {
-      case 'appearanceDate': return t.detail_appearanceDate;
-      case 'appearanceTime': return t.detail_appearanceTime;
-      case 'handoverDate': return t.detail_handoverDate;
-      case 'handoverTime': return t.detail_handoverTime;
-      default: return '';
-    }
-  }
+  const inputStyle = [s.input, { backgroundColor: theme.surface, color: theme.text }];
+  const cardStyle = [s.card, { backgroundColor: theme.card }];
 
   return (
-    <ScrollView style={s.screen} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView
+      style={[s.screen, { backgroundColor: theme.bg }]}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 40 }}
+    >
       <TouchableOpacity onPress={() => router.back()} style={s.back}>
-        <Text style={s.backText}>{t.detail_back}</Text>
+        <Text style={[s.backText, { color: theme.primary }]}>{t.detail_back}</Text>
       </TouchableOpacity>
 
       <View style={s.titleRow}>
-        <Text style={s.title} numberOfLines={2}>{trip.routeFrom} — {trip.routeTo}</Text>
+        <Text style={[s.title, { color: theme.text }]} numberOfLines={2}>{trip.routeFrom} — {trip.routeTo}</Text>
         <TouchableOpacity onPress={editing ? handleCancelEdit : () => setEditing(true)}>
-          <Text style={s.editBtn}>{editing ? t.detail_cancel : t.detail_edit}</Text>
+          <Text style={[s.editBtn, { color: theme.primary }]}>{editing ? t.detail_cancel : t.detail_edit}</Text>
         </TouchableOpacity>
       </View>
 
       {!editing ? (
         <>
           {/* Route */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_secRoute}</SectionTitle>
-            <InfoRow label={t.detail_tripType} value={tripTypeLabel(trip.tripType)} />
-            {trip.trainNumber ? <InfoRow label={t.detail_trainNumber} value={trip.trainNumber} /> : null}
-            <InfoRow label={t.detail_date} value={
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secRoute}</SectionTitle>
+            <InfoRow theme={theme} label={t.detail_tripType} value={tripTypeLabel(trip.tripType)} />
+            {trip.trainNumber ? <InfoRow theme={theme} label={t.detail_trainNumber} value={trip.trainNumber} /> : null}
+            <InfoRow theme={theme} label={t.detail_date} value={
               trip.endDate && trip.endDate !== trip.date
                 ? `${formatDateRu(trip.date)} → ${formatDateRu(trip.endDate!)}`
                 : formatDateRu(trip.date)
             } />
             {trip.durationMinutes
-              ? <InfoRow label={t.detail_duration} value={fmtDur(trip.durationMinutes, t)} />
+              ? <InfoRow theme={theme} label={t.detail_duration} value={fmtDur(trip.durationMinutes, t)} />
               : null}
           </View>
 
           {/* Train */}
           {(trip.trainWeight != null || trip.axleCount != null) && (
-            <View style={s.card}>
-              <SectionTitle>{t.detail_secTrain}</SectionTitle>
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>{t.detail_secTrain}</SectionTitle>
               {trip.trainWeight != null
-                ? <InfoRow label={t.detail_trainWeight} value={String(trip.trainWeight)} />
+                ? <InfoRow theme={theme} label={t.detail_trainWeight} value={String(trip.trainWeight)} />
                 : null}
               {trip.axleCount != null
-                ? <InfoRow label={t.detail_axleCount} value={String(trip.axleCount)} />
+                ? <InfoRow theme={theme} label={t.detail_axleCount} value={String(trip.axleCount)} />
                 : null}
             </View>
           )}
 
           {/* Loco */}
           {(trip.locoModel || trip.locoNumber || trip.sectionCount != null) && (
-            <View style={s.card}>
-              <SectionTitle>
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>
                 {t.detail_secLoco}{trip.sectionCount && trip.sectionCount > 1 ? ` · ${trip.sectionCount} сек.` : ''}
               </SectionTitle>
-              {trip.locoModel ? <InfoRow label={t.detail_locoModel} value={trip.locoModel} /> : null}
-              {trip.locoNumber ? <InfoRow label={t.detail_locoNumber} value={trip.locoNumber} /> : null}
+              {trip.locoModel ? <InfoRow theme={theme} label={t.detail_locoModel} value={trip.locoModel} /> : null}
+              {trip.locoNumber ? <InfoRow theme={theme} label={t.detail_locoNumber} value={trip.locoNumber} /> : null}
               {trip.sectionCount != null
-                ? <InfoRow label={t.detail_sectionCount} value={String(trip.sectionCount)} />
+                ? <InfoRow theme={theme} label={t.detail_sectionCount} value={String(trip.sectionCount)} />
                 : null}
             </View>
           )}
 
           {/* Cycle */}
           {hasCycle && (
-            <View style={s.card}>
-              <SectionTitle>{t.detail_secCycle}</SectionTitle>
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>{t.detail_secCycle}</SectionTitle>
               {trip.appearanceTime && trip.appearanceDate && (
                 <CycleRow
+                  theme={theme}
                   marker="▶"
                   label={t.detail_appearance}
                   datetime={formatShortDatetime(trip.appearanceDate, trip.appearanceTime)}
@@ -343,15 +353,16 @@ export default function TripDetailScreen() {
               )}
               {trip.handoverTime && trip.handoverDate && (
                 <CycleRow
+                  theme={theme}
                   marker="■"
                   label={t.detail_handover}
                   datetime={formatShortDatetime(trip.handoverDate, trip.handoverTime)}
                 />
               )}
               {totalCycleMin !== null && totalCycleMin > 0 && (
-                <View style={s.cycleTotalRow}>
-                  <Text style={s.cycleTotalLabel}>{t.detail_totalCycle}</Text>
-                  <Text style={s.cycleTotalValue}>{fmtDur(totalCycleMin, t)}</Text>
+                <View style={[s.cycleTotalRow, { borderTopColor: theme.border }]}>
+                  <Text style={[s.cycleTotalLabel, { color: theme.textDim }]}>{t.detail_totalCycle}</Text>
+                  <Text style={[s.cycleTotalValue, { color: theme.success }]}>{fmtDur(totalCycleMin, t)}</Text>
                 </View>
               )}
             </View>
@@ -359,8 +370,8 @@ export default function TripDetailScreen() {
 
           {/* Electricity */}
           {hasElec && (
-            <View style={s.card}>
-              <SectionTitle>
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>
                 {t.detail_secElec}{trip.sectionCount && trip.sectionCount > 1 ? ` (${trip.sectionCount} сек.)` : ''}
               </SectionTitle>
               {hasSectionMeters
@@ -371,29 +382,29 @@ export default function TripDetailScreen() {
                     return (
                       <View key={i} style={i > 0 ? { marginTop: 8 } : undefined}>
                         {(trip.sectionCount ?? 1) > 1 && (
-                          <Text style={s.sectionLabel}>{t.detail_section} {i + 1}</Text>
+                          <Text style={[s.sectionLabel, { color: theme.textMute }]}>{t.detail_section} {i + 1}</Text>
                         )}
                         {sm.start !== undefined
-                          ? <InfoRow label={t.detail_elecStart} value={`${sm.start} кВт·ч`} />
+                          ? <InfoRow theme={theme} label={t.detail_elecStart} value={`${sm.start} кВт·ч`} />
                           : null}
                         {sm.end !== undefined
-                          ? <InfoRow label={t.detail_elecEnd} value={`${sm.end} кВт·ч`} />
+                          ? <InfoRow theme={theme} label={t.detail_elecEnd} value={`${sm.end} кВт·ч`} />
                           : null}
                         {cons !== null
-                          ? <InfoRow label={t.detail_elecConsumption} value={`${cons.toFixed(0)} кВт·ч`} />
+                          ? <InfoRow theme={theme} label={t.detail_elecConsumption} value={`${cons.toFixed(0)} кВт·ч`} />
                           : null}
                       </View>
                     );
                   })
                 : <>
                     {trip.meterStart !== undefined
-                      ? <InfoRow label={t.detail_elecMeterStart} value={`${trip.meterStart} кВт·ч`} />
+                      ? <InfoRow theme={theme} label={t.detail_elecMeterStart} value={`${trip.meterStart} кВт·ч`} />
                       : null}
                     {trip.meterEnd !== undefined
-                      ? <InfoRow label={t.detail_elecMeterEnd} value={`${trip.meterEnd} кВт·ч`} />
+                      ? <InfoRow theme={theme} label={t.detail_elecMeterEnd} value={`${trip.meterEnd} кВт·ч`} />
                       : null}
                     {trip.meterStart !== undefined && trip.meterEnd !== undefined && trip.meterEnd >= trip.meterStart
-                      ? <InfoRow label={t.detail_elecConsumption} value={`${(trip.meterEnd - trip.meterStart).toFixed(0)} кВт·ч`} />
+                      ? <InfoRow theme={theme} label={t.detail_elecConsumption} value={`${(trip.meterEnd - trip.meterStart).toFixed(0)} кВт·ч`} />
                       : null}
                   </>
               }
@@ -403,9 +414,9 @@ export default function TripDetailScreen() {
                 if (!allValid) return null;
                 const total = sms.reduce((sum, sm) => sum + (sm.end! - sm.start!), 0);
                 return (
-                  <View style={s.cycleTotalRow}>
-                    <Text style={s.cycleTotalLabel}>{t.detail_elecTotal}</Text>
-                    <Text style={s.cycleTotalValue}>{total.toFixed(0)} кВт·ч</Text>
+                  <View style={[s.cycleTotalRow, { borderTopColor: theme.border }]}>
+                    <Text style={[s.cycleTotalLabel, { color: theme.textDim }]}>{t.detail_elecTotal}</Text>
+                    <Text style={[s.cycleTotalValue, { color: theme.success }]}>{total.toFixed(0)} кВт·ч</Text>
                   </View>
                 );
               })()}
@@ -413,22 +424,22 @@ export default function TripDetailScreen() {
           )}
 
           {trip.notes ? (
-            <View style={s.card}>
-              <SectionTitle>{t.detail_secNotes}</SectionTitle>
-              <Text style={s.notesText}>{trip.notes}</Text>
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>{t.detail_secNotes}</SectionTitle>
+              <Text style={[s.notesText, { color: theme.textMute }]}>{trip.notes}</Text>
             </View>
           ) : null}
 
           <TouchableOpacity
-            style={s.deleteBtn}
+            style={[s.deleteBtn, { borderColor: theme.danger }]}
             onPress={handleDeletePress}
             activeOpacity={0.75}
           >
-            <Text style={s.deleteBtnText}>{t.detail_deleteTrip}</Text>
+            <Text style={[s.deleteBtnText, { color: theme.danger }]}>{t.detail_deleteTrip}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={s.duplicateBtn}
+            style={[s.duplicateBtn, { borderColor: theme.border }]}
             onPress={() => router.push({
               pathname: '/(tabs)/add',
               params: {
@@ -446,96 +457,98 @@ export default function TripDetailScreen() {
             })}
             activeOpacity={0.75}
           >
-            <Text style={s.duplicateBtnText}>{t.detail_duplicateTrip}</Text>
+            <Text style={[s.duplicateBtnText, { color: theme.textDim }]}>{t.detail_duplicateTrip}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={s.exportBtn}
+            style={[s.exportBtn, { borderColor: theme.primaryDark }]}
             onPress={handleExportPress}
             disabled={exporting}
             activeOpacity={0.75}
           >
             {exporting
-              ? <ActivityIndicator color="#3b82f6" />
-              : <Text style={s.exportBtnText}>{t.detail_exportPdf}</Text>}
+              ? <ActivityIndicator color={theme.primary} />
+              : <Text style={[s.exportBtnText, { color: theme.primary }]}>{t.detail_exportPdf}</Text>}
           </TouchableOpacity>
         </>
       ) : (
         <>
           {/* Route edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_secRoute}</SectionTitle>
-            <Text style={s.label}>{t.detail_stationFrom}</Text>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secRoute}</SectionTitle>
+            <Text style={[s.label, { color: theme.textMute }]}>{t.detail_stationFrom}</Text>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               value={draft.routeFrom ?? ''}
               onChangeText={(v) => setField('routeFrom', v)}
-              placeholderTextColor="#475569"
+              placeholderTextColor={theme.textMute}
               placeholder={t.detail_from}
             />
             <View style={s.routeDivider}>
-              <View style={s.routeLine} />
-              <Text style={s.routeArrow}>↓</Text>
-              <View style={s.routeLine} />
+              <View style={[s.routeLine, { backgroundColor: theme.border }]} />
+              <Text style={[s.routeArrow, { color: theme.textMute }]}>↓</Text>
+              <View style={[s.routeLine, { backgroundColor: theme.border }]} />
             </View>
-            <Text style={s.label}>{t.detail_stationTo}</Text>
+            <Text style={[s.label, { color: theme.textMute }]}>{t.detail_stationTo}</Text>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               value={draft.routeTo ?? ''}
               onChangeText={(v) => setField('routeTo', v)}
-              placeholderTextColor="#475569"
+              placeholderTextColor={theme.textMute}
               placeholder={t.detail_to}
             />
 
-            <Text style={s.label}>{t.detail_tripType}</Text>
+            <Text style={[s.label, { color: theme.textMute }]}>{t.detail_tripType}</Text>
             <View style={s.chipRow}>
               {TYPES.map((tripT) => (
                 <TouchableOpacity
                   key={tripT}
-                  style={[s.chip, draft.tripType === tripT && s.chipActive]}
+                  style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                    draft.tripType === tripT && { backgroundColor: theme.primary, borderColor: theme.primary }]}
                   onPress={() => setField('tripType', tripT)}
                 >
-                  <Text style={[s.chipText, draft.tripType === tripT && s.chipTextActive]}>
+                  <Text style={[s.chipText, { color: theme.textMute },
+                    draft.tripType === tripT && { color: '#fff', fontWeight: '600' }]}>
                     {tripTypeLabel(tripT)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={s.label}>{t.detail_trainNumber}</Text>
+            <Text style={[s.label, { color: theme.textMute }]}>{t.detail_trainNumber}</Text>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               value={draft.trainNumber ?? ''}
               onChangeText={(v) => setField('trainNumber', v || undefined)}
-              placeholderTextColor="#475569"
+              placeholderTextColor={theme.textMute}
               placeholder="1234"
               keyboardType="numeric"
             />
           </View>
 
           {/* Train edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_secTrain}</SectionTitle>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secTrain}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_trainWeight}</Text>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_trainWeight}</Text>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   value={draft.trainWeight?.toString() ?? ''}
                   onChangeText={(v) => setField('trainWeight', v ? parseFloat(v) : undefined)}
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={theme.textMute}
                   placeholder="0"
                   keyboardType="numeric"
                 />
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_axleCount}</Text>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_axleCount}</Text>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   value={draft.axleCount?.toString() ?? ''}
                   onChangeText={(v) => setField('axleCount', v ? parseInt(v, 10) : undefined)}
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={theme.textMute}
                   placeholder="0"
                   keyboardType="numeric"
                 />
@@ -544,27 +557,27 @@ export default function TripDetailScreen() {
           </View>
 
           {/* Loco edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_secLoco}</SectionTitle>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secLoco}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 2 }}>
-                <Text style={s.colLabel}>{t.detail_locoModel}</Text>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_locoModel}</Text>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   value={draft.locoModel ?? ''}
                   onChangeText={(v) => setField('locoModel', v || undefined)}
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={theme.textMute}
                   placeholder="ВЛ80, КЗ8А..."
                 />
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_locoNumber}</Text>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_locoNumber}</Text>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   value={draft.locoNumber ?? ''}
                   onChangeText={(v) => setField('locoNumber', v || undefined)}
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={theme.textMute}
                   placeholder="0542"
                   keyboardType="numeric"
                 />
@@ -573,57 +586,73 @@ export default function TripDetailScreen() {
           </View>
 
           {/* Appearance edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_appearance}</SectionTitle>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_appearance}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_appearanceDate}</Text>
-                <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('appearanceDate')} activeOpacity={0.7}>
-                  <Text style={draft.appearanceDate ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_appearanceDate}</Text>
+                <TouchableOpacity
+                  style={[s.pickerField, { backgroundColor: theme.surface }]}
+                  onPress={() => setPickerMode('appearanceDate')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerValue, { color: draft.appearanceDate ? theme.text : theme.textMute }]} numberOfLines={1}>
                     {draft.appearanceDate ?? t.detail_choose}
                   </Text>
-                  <View style={{ flexShrink: 0, paddingLeft: 6 }}><Ionicons name="calendar-outline" size={18} color="#94a3b8" /></View>
+                  <Ionicons name="calendar-outline" size={18} color={theme.textDim} />
                 </TouchableOpacity>
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_appearanceTime}</Text>
-                <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('appearanceTime')} activeOpacity={0.7}>
-                  <Text style={draft.appearanceTime ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_appearanceTime}</Text>
+                <TouchableOpacity
+                  style={[s.pickerField, { backgroundColor: theme.surface }]}
+                  onPress={() => setPickerMode('appearanceTime')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerValue, { color: draft.appearanceTime ? theme.text : theme.textMute }]} numberOfLines={1}>
                     {draft.appearanceTime ?? '--:--'}
                   </Text>
-                  <View style={{ flexShrink: 0, paddingLeft: 6 }}><Ionicons name="time-outline" size={18} color="#94a3b8" /></View>
+                  <Ionicons name="time-outline" size={18} color={theme.textDim} />
                 </TouchableOpacity>
               </View>
             </View>
             {(draft.appearanceDate || draft.appearanceTime) ? (
               <TouchableOpacity onPress={() => setDraft((d) => ({ ...d, appearanceDate: undefined, appearanceTime: undefined }))}>
-                <Text style={s.clearLink}>{t.detail_clearAppearance}</Text>
+                <Text style={[s.clearLink, { color: theme.danger }]}>{t.detail_clearAppearance}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
           {/* Handover edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_handover}</SectionTitle>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_handover}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_handoverDate}</Text>
-                <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('handoverDate')} activeOpacity={0.7}>
-                  <Text style={draft.handoverDate ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_handoverDate}</Text>
+                <TouchableOpacity
+                  style={[s.pickerField, { backgroundColor: theme.surface }]}
+                  onPress={() => setPickerMode('handoverDate')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerValue, { color: draft.handoverDate ? theme.text : theme.textMute }]} numberOfLines={1}>
                     {draft.handoverDate ?? t.detail_choose}
                   </Text>
-                  <View style={{ flexShrink: 0, paddingLeft: 6 }}><Ionicons name="calendar-outline" size={18} color="#94a3b8" /></View>
+                  <Ionicons name="calendar-outline" size={18} color={theme.textDim} />
                 </TouchableOpacity>
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_handoverTime}</Text>
-                <TouchableOpacity style={s.pickerField} onPress={() => setPickerMode('handoverTime')} activeOpacity={0.7}>
-                  <Text style={draft.handoverTime ? s.pickerValue : s.pickerPlaceholder} numberOfLines={1}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_handoverTime}</Text>
+                <TouchableOpacity
+                  style={[s.pickerField, { backgroundColor: theme.surface }]}
+                  onPress={() => setPickerMode('handoverTime')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerValue, { color: draft.handoverTime ? theme.text : theme.textMute }]} numberOfLines={1}>
                     {draft.handoverTime ?? '--:--'}
                   </Text>
-                  <View style={{ flexShrink: 0, paddingLeft: 6 }}><Ionicons name="time-outline" size={18} color="#94a3b8" /></View>
+                  <Ionicons name="time-outline" size={18} color={theme.textDim} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -633,39 +662,39 @@ export default function TripDetailScreen() {
                 draft.handoverDate, draft.handoverTime,
               );
               return cycleMin && cycleMin > 0
-                ? <Text style={s.cycleCalcText}>{t.detail_cycle}: {fmtDur(cycleMin, t)}</Text>
-                : <Text style={s.timeError}>{t.detail_timeError}</Text>;
+                ? <Text style={[s.cycleCalcText, { color: theme.success }]}>{t.detail_cycle}: {fmtDur(cycleMin, t)}</Text>
+                : <Text style={[s.timeError, { color: theme.danger }]}>{t.detail_timeError}</Text>;
             })() : null}
             {(draft.handoverDate || draft.handoverTime) ? (
               <TouchableOpacity onPress={() => setDraft((d) => ({ ...d, handoverDate: undefined, handoverTime: undefined }))}>
-                <Text style={s.clearLink}>{t.detail_clearHandover}</Text>
+                <Text style={[s.clearLink, { color: theme.danger }]}>{t.detail_clearHandover}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
           {/* Electricity edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_secElec}</SectionTitle>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secElec}</SectionTitle>
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_elecMeterStartLabel}</Text>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_elecMeterStartLabel}</Text>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   value={draft.meterStart?.toString() ?? ''}
                   onChangeText={(v) => setField('meterStart', v ? parseFloat(v) : undefined)}
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={theme.textMute}
                   placeholder="0"
                   keyboardType="numeric"
                 />
               </View>
               <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={s.colLabel}>{t.detail_elecMeterEndLabel}</Text>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_elecMeterEndLabel}</Text>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   value={draft.meterEnd?.toString() ?? ''}
                   onChangeText={(v) => setField('meterEnd', v ? parseFloat(v) : undefined)}
-                  placeholderTextColor="#475569"
+                  placeholderTextColor={theme.textMute}
                   placeholder="0"
                   keyboardType="numeric"
                 />
@@ -674,19 +703,23 @@ export default function TripDetailScreen() {
           </View>
 
           {/* Notes edit */}
-          <View style={s.card}>
-            <SectionTitle>{t.detail_secNotes}</SectionTitle>
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secNotes}</SectionTitle>
             <TextInput
-              style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
+              style={[inputStyle, { minHeight: 60, textAlignVertical: 'top' }]}
               value={draft.notes ?? ''}
               onChangeText={(v) => setField('notes', v || undefined)}
-              placeholderTextColor="#475569"
+              placeholderTextColor={theme.textMute}
               placeholder={t.detail_notOptional}
               multiline
             />
           </View>
 
-          <TouchableOpacity style={s.btn} onPress={handleSave} disabled={saving}>
+          <TouchableOpacity
+            style={[s.btn, { backgroundColor: theme.primary }]}
+            onPress={handleSave}
+            disabled={saving}
+          >
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{t.detail_saveChanges}</Text>}
           </TouchableOpacity>
         </>
@@ -695,11 +728,11 @@ export default function TripDetailScreen() {
       {Platform.OS === 'ios' && pickerMode ? (
         <Modal transparent animationType="slide" visible>
           <View style={s.iosOverlay}>
-            <View style={s.iosSheet}>
-              <View style={s.iosSheetHeader}>
-                <Text style={s.iosSheetTitle}>{pickerModeLabel(pickerMode)}</Text>
+            <View style={[s.iosSheet, { backgroundColor: theme.card }]}>
+              <View style={[s.iosSheetHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[s.iosSheetTitle, { color: theme.text }]}>{pickerModeLabel(pickerMode)}</Text>
                 <TouchableOpacity onPress={() => setPickerMode(null)}>
-                  <Text style={s.iosSheetDone}>{t.detail_iosDone}</Text>
+                  <Text style={[s.iosSheetDone, { color: theme.primary }]}>{t.detail_iosDone}</Text>
                 </TouchableOpacity>
               </View>
               {pickerNode}
@@ -713,123 +746,121 @@ export default function TripDetailScreen() {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <Text style={s.sectionTitle}>{children}</Text>;
+function SectionTitle({ children, theme }: { children: React.ReactNode; theme: Theme }) {
+  return <Text style={[s.sectionTitle, { color: theme.text }]}>{children}</Text>;
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, theme }: { label: string; value: string; theme: Theme }) {
   return (
     <View style={s.infoRow}>
-      <Text style={s.infoLabel}>{label}</Text>
-      <Text style={s.infoValue}>{value}</Text>
+      <Text style={[s.infoLabel, { color: theme.textDim }]}>{label}</Text>
+      <Text style={[s.infoValue, { color: theme.text }]}>{value}</Text>
     </View>
   );
 }
 
-function CycleRow({ marker, label, datetime }: { marker: string; label: string; datetime: string }) {
+function CycleRow({ marker, label, datetime, theme }: { marker: string; label: string; datetime: string; theme: Theme }) {
   return (
     <View style={s.cycleRow}>
-      <Text style={s.cycleMarker}>{marker}</Text>
+      <Text style={[s.cycleMarker, { color: theme.textDim }]}>{marker}</Text>
       <View style={{ flex: 1 }}>
-        <Text style={s.cycleLabel}>{label}</Text>
-        <Text style={s.cycleDatetime}>{datetime}</Text>
+        <Text style={[s.cycleLabel, { color: theme.textDim }]}>{label}</Text>
+        <Text style={[s.cycleDatetime, { color: theme.text }]}>{datetime}</Text>
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#0f172a', paddingHorizontal: 16 },
+  screen: { flex: 1, paddingHorizontal: 16 },
   back: { marginTop: 48, marginBottom: 12 },
-  backText: { color: '#3b82f6', fontSize: 15 },
+  backText: { fontSize: 15 },
   titleRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'flex-start', marginBottom: 16, gap: 12,
   },
-  title: { color: '#f1f5f9', fontSize: 20, fontWeight: 'bold', flex: 1 },
-  editBtn: { color: '#3b82f6', fontSize: 15 },
+  title: { fontSize: 20, fontWeight: 'bold', flex: 1 },
+  editBtn: { fontSize: 15 },
 
-  card: { backgroundColor: '#1e293b', borderRadius: 14, padding: 16, marginBottom: 12 },
-  label: { color: '#94a3b8', fontSize: 12, marginBottom: 4, marginTop: 8 },
+  card: { borderRadius: 14, padding: 16, marginBottom: 12 },
+  label: { fontSize: 12, marginBottom: 4, marginTop: 8 },
   input: {
-    backgroundColor: '#0f172a', color: '#f1f5f9', borderRadius: 10,
+    borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11, fontSize: 15,
   },
-  notesText: { color: '#94a3b8', fontSize: 14, lineHeight: 20 },
+  notesText: { fontSize: 14, lineHeight: 20 },
 
-  sectionTitle: { color: '#f1f5f9', fontSize: 14, fontWeight: '600', marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 10 },
   infoRow: { marginBottom: 10 },
-  infoLabel: { color: '#64748b', fontSize: 12 },
-  infoValue: { color: '#f1f5f9', fontSize: 15, marginTop: 2 },
+  infoLabel: { fontSize: 12 },
+  infoValue: { fontSize: 15, marginTop: 2 },
 
-  sectionLabel: { color: '#475569', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  sectionLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
 
   cycleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 6 },
   cycleMarker: { fontSize: 14, width: 20, textAlign: 'center', marginTop: 2 },
-  cycleLabel: { color: '#64748b', fontSize: 12 },
-  cycleDatetime: { color: '#f1f5f9', fontSize: 14, marginTop: 1 },
+  cycleLabel: { fontSize: 12 },
+  cycleDatetime: { fontSize: 14, marginTop: 1 },
 
   cycleTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#334155',
+    marginTop: 8, paddingTop: 8, borderTopWidth: 1,
   },
-  cycleTotalLabel: { color: '#64748b', fontSize: 13 },
-  cycleTotalValue: { color: '#34d399', fontSize: 14, fontWeight: '600' },
+  cycleTotalLabel: { fontSize: 13 },
+  cycleTotalValue: { fontSize: 14, fontWeight: '600' },
+
   row: { flexDirection: 'row', alignItems: 'flex-start' },
-  colLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
-  cycleCalcText: { color: '#34d399', fontSize: 13, marginTop: 6 },
-  clearLink: { color: '#ef4444', fontSize: 12, marginTop: 8 },
+  colLabel: { fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
+  cycleCalcText: { fontSize: 13, marginTop: 6 },
+  clearLink: { fontSize: 12, marginTop: 8 },
 
   routeDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
-  routeLine: { flex: 1, height: 1, backgroundColor: '#334155' },
-  routeArrow: { color: '#475569', fontSize: 16, marginHorizontal: 8 },
+  routeLine: { flex: 1, height: 1 },
+  routeArrow: { fontSize: 16, marginHorizontal: 8 },
 
   pickerField: {
-    backgroundColor: '#0f172a', borderRadius: 10,
+    borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 4,
   },
-  pickerValue: { color: '#f1f5f9', fontSize: 15, flex: 1 },
-  pickerPlaceholder: { color: '#475569', fontSize: 15, flex: 1 },
+  pickerValue: { fontSize: 15, flex: 1 },
 
-  timeError: { color: '#ef4444', fontSize: 13, marginTop: 6 },
+  timeError: { fontSize: 13, marginTop: 6 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#334155',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1,
   },
-  chipActive: { backgroundColor: '#3b82f6', borderColor: '#3b82f6' },
-  chipText: { color: '#64748b', fontSize: 13 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  chipText: { fontSize: 13 },
 
-  btn: { backgroundColor: '#3b82f6', borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 },
+  btn: { borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 16 },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
   deleteBtn: {
-    borderWidth: 1, borderColor: '#7f1d1d', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderRadius: 12, padding: 14,
     alignItems: 'center', marginBottom: 10,
   },
-  deleteBtnText: { color: '#ef4444', fontSize: 15, fontWeight: '600' },
+  deleteBtnText: { fontSize: 15, fontWeight: '600' },
 
   duplicateBtn: {
-    borderWidth: 1, borderColor: '#334155', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderRadius: 12, padding: 14,
     alignItems: 'center', marginBottom: 10,
   },
-  duplicateBtnText: { color: '#94a3b8', fontSize: 15, fontWeight: '600' },
+  duplicateBtnText: { fontSize: 15, fontWeight: '600' },
 
   exportBtn: {
-    borderWidth: 1, borderColor: '#1d4ed8', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderRadius: 12, padding: 14,
     alignItems: 'center', marginBottom: 40,
   },
-  exportBtnText: { color: '#3b82f6', fontSize: 15, fontWeight: '600' },
+  exportBtnText: { fontSize: 15, fontWeight: '600' },
 
   iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  iosSheet: { backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+  iosSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
   iosSheetHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: '#334155',
+    padding: 16, borderBottomWidth: 1,
   },
-  iosSheetTitle: { color: '#f1f5f9', fontSize: 16, fontWeight: '600' },
-  iosSheetDone: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
+  iosSheetTitle: { fontSize: 16, fontWeight: '600' },
+  iosSheetDone: { fontSize: 16, fontWeight: '600' },
 });

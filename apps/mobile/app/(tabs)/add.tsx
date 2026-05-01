@@ -16,25 +16,9 @@ import {
 import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema, AppearanceType } from '@railcrew/contracts';
 import { todayISO } from '@/utils/date';
 import { useLang, fmtDur } from '@/i18n';
+import { useTheme, Theme } from '@/theme';
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
-
-const C = {
-  bg: '#0B0F14',
-  surface: '#111820',
-  card: '#192030',
-  line: '#263245',
-  lineSoft: '#1C2736',
-  text: '#E8EEF5',
-  textDim: '#8A99AD',
-  textMute: '#5B6A7E',
-  blue: '#2472CC',
-  blueDark: '#1A5BA8',
-  blueDim: '#0D3D7A',
-  amber: '#F5B301',
-  green: '#3BD48A',
-  danger: '#FF5A5F',
-};
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -108,6 +92,7 @@ function validateSectionMeters(meters: SectionMeterStr[]): string | null {
 
 export default function AddTripScreen() {
   const { t } = useLang();
+  const { theme } = useTheme();
 
   const params = useLocalSearchParams<{
     routeFrom?: string; routeTo?: string; tripType?: TripType; notes?: string;
@@ -399,23 +384,35 @@ export default function AddTripScreen() {
     }
   }
 
+  const inputStyle = [s.input, {
+    backgroundColor: theme.surface, color: theme.text, borderColor: theme.border,
+  }];
+
   return (
-    <ScrollView style={s.screen} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
-      <Text style={s.header}>{t.add_title}</Text>
+    <ScrollView
+      style={[s.screen, { backgroundColor: theme.bg }]}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 120 }}
+    >
+      <Text style={[s.header, { color: theme.text }]}>{t.add_title}</Text>
 
       {/* ─── Шаблоны ─────────────────────────────────────── */}
       {routes.length > 0 && (
-        <Section>
-          <Label>{t.add_templates}</Label>
+        <Section theme={theme}>
+          <Label theme={theme}>{t.add_templates}</Label>
           <View style={{ gap: 8 }}>
             {routes.map((r) => (
               <View key={r.id} style={s.templateRow}>
-                <TouchableOpacity style={s.templateChip} onPress={() => applyTemplate(r)} activeOpacity={0.75}>
-                  <Text style={s.templateText} numberOfLines={1}>{r.routeFrom} → {r.routeTo}</Text>
-                  <Text style={s.templateSub}>{tripTypeLabel(r.tripType)}</Text>
+                <TouchableOpacity
+                  style={[s.templateChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  onPress={() => applyTemplate(r)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[s.templateText, { color: theme.text }]} numberOfLines={1}>{r.routeFrom} → {r.routeTo}</Text>
+                  <Text style={[s.templateSub, { color: theme.textMute }]}>{tripTypeLabel(r.tripType)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleRemoveTemplate(r.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={s.removeText}>✕</Text>
+                  <Text style={[s.removeText, { color: theme.textMute }]}>✕</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -424,51 +421,55 @@ export default function AddTripScreen() {
       )}
 
       {/* ─── 1: Маршрут ──────────────────────────────────── */}
-      <Section title={t.add_secRoute} step={1}>
+      <Section theme={theme} title={t.add_secRoute} step={1}>
         <View style={s.routeHeader}>
-          <Label style={{ marginTop: 0 }}>{t.add_stations}</Label>
+          <Label theme={theme} style={{ marginTop: 0 }}>{t.add_stations}</Label>
           <TouchableOpacity onPress={handleSaveTemplate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={s.saveTemplate}>{t.add_addTemplate}</Text>
+            <Text style={[s.saveTemplate, { color: theme.primary }]}>{t.add_addTemplate}</Text>
           </TouchableOpacity>
         </View>
         <TextInput
-          style={s.input}
+          style={inputStyle}
           placeholder={t.add_stationFrom}
-          placeholderTextColor={C.textMute}
+          placeholderTextColor={theme.textMute}
           value={fields.routeFrom ?? ''}
           onChangeText={(v) => setF('routeFrom', v)}
         />
         <View style={s.divider}>
-          <View style={s.divLine} /><Text style={s.divArrow}>↓</Text><View style={s.divLine} />
+          <View style={[s.divLine, { backgroundColor: theme.border }]} />
+          <Text style={[s.divArrow, { color: theme.textMute }]}>↓</Text>
+          <View style={[s.divLine, { backgroundColor: theme.border }]} />
         </View>
         <TextInput
-          style={s.input}
+          style={inputStyle}
           placeholder={t.add_stationTo}
-          placeholderTextColor={C.textMute}
+          placeholderTextColor={theme.textMute}
           value={fields.routeTo ?? ''}
           onChangeText={(v) => setF('routeTo', v)}
         />
 
-        <Label>{t.add_tripType}</Label>
+        <Label theme={theme}>{t.add_tripType}</Label>
         <View style={s.chipRow}>
           {TYPES.map((tripT) => (
             <TouchableOpacity
               key={tripT}
-              style={[s.chip, fields.tripType === tripT && s.chipActive]}
+              style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                fields.tripType === tripT && { backgroundColor: theme.primary, borderColor: theme.primary }]}
               onPress={() => setF('tripType', tripT)}
             >
-              <Text style={[s.chipText, fields.tripType === tripT && s.chipTextActive]}>
+              <Text style={[s.chipText, { color: theme.textMute },
+                fields.tripType === tripT && { color: '#fff', fontWeight: '600' }]}>
                 {tripTypeLabel(tripT)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <Label>{t.add_trainNumber}</Label>
+        <Label theme={theme}>{t.add_trainNumber}</Label>
         <TextInput
-          style={s.input}
+          style={inputStyle}
           placeholder={t.add_exTrainNumber}
-          placeholderTextColor={C.textMute}
+          placeholderTextColor={theme.textMute}
           keyboardType="numeric"
           value={extended.trainNumber}
           onChangeText={(v) => setExt('trainNumber', v)}
@@ -476,14 +477,14 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 2: Состав поезда ────────────────────────────── */}
-      <Section title={t.add_secTrain} step={2}>
+      <Section theme={theme} title={t.add_secTrain} step={2}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_trainWeight}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_trainWeight}</Label>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               placeholder=""
-              placeholderTextColor={C.textMute}
+              placeholderTextColor={theme.textMute}
               keyboardType="numeric"
               value={extended.trainWeight}
               onChangeText={(v) => setExt('trainWeight', v)}
@@ -491,11 +492,11 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_axleCount}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_axleCount}</Label>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               placeholder=""
-              placeholderTextColor={C.textMute}
+              placeholderTextColor={theme.textMute}
               keyboardType="numeric"
               value={extended.axleCount}
               onChangeText={(v) => setExt('axleCount', v)}
@@ -505,25 +506,25 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 3: Локомотив ────────────────────────────────── */}
-      <Section title={t.add_secLoco} step={3}>
+      <Section theme={theme} title={t.add_secLoco} step={3}>
         <View style={s.row}>
           <View style={{ flex: 2 }}>
-            <Label style={s.colLabel}>{t.add_locoModel}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_locoModel}</Label>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               placeholder={t.add_exLocoModel}
-              placeholderTextColor={C.textMute}
+              placeholderTextColor={theme.textMute}
               value={extended.locoModel}
               onChangeText={(v) => setExt('locoModel', v)}
             />
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_locoNumber}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_locoNumber}</Label>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               placeholder={t.add_exLocoNumber}
-              placeholderTextColor={C.textMute}
+              placeholderTextColor={theme.textMute}
               keyboardType="numeric"
               value={extended.locoNumber}
               onChangeText={(v) => setExt('locoNumber', v)}
@@ -531,31 +532,35 @@ export default function AddTripScreen() {
           </View>
         </View>
 
-        <Label>{t.add_sectionCount}</Label>
+        <Label theme={theme}>{t.add_sectionCount}</Label>
         <View style={s.chipRow}>
           {([1, 2, 3] as const).map((n) => (
             <TouchableOpacity
               key={n}
-              style={[s.chip, sectionCount === n && s.chipActive]}
+              style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                sectionCount === n && { backgroundColor: theme.primary, borderColor: theme.primary }]}
               onPress={() => handleSectionCountChange(n)}
             >
-              <Text style={[s.chipText, sectionCount === n && s.chipTextActive]}>{n}</Text>
+              <Text style={[s.chipText, { color: theme.textMute },
+                sectionCount === n && { color: '#fff', fontWeight: '600' }]}>{n}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </Section>
 
       {/* ─── 4: Явка ─────────────────────────────────────── */}
-      <Section title={t.add_secAppearance} step={4}>
-        <Label>{t.add_appearanceType}</Label>
+      <Section theme={theme} title={t.add_secAppearance} step={4}>
+        <Label theme={theme}>{t.add_appearanceType}</Label>
         <View style={s.chipRow}>
           {(['HOME', 'TURNAROUND'] as AppearanceType[]).map((aType) => (
             <TouchableOpacity
               key={aType}
-              style={[s.chip, fields.appearanceType === aType && s.chipActive]}
+              style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                fields.appearanceType === aType && { backgroundColor: theme.primary, borderColor: theme.primary }]}
               onPress={() => setF('appearanceType', aType)}
             >
-              <Text style={[s.chipText, fields.appearanceType === aType && s.chipTextActive]}>
+              <Text style={[s.chipText, { color: theme.textMute },
+                fields.appearanceType === aType && { color: '#fff', fontWeight: '600' }]}>
                 {appearanceTypeLabel(aType)}
               </Text>
             </TouchableOpacity>
@@ -564,8 +569,9 @@ export default function AddTripScreen() {
 
         <View style={s.row}>
           <View style={{ flex: 1.2 }}>
-            <Label style={s.colLabel}>{t.add_appearanceDate}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_appearanceDate}</Label>
             <PickerBtn
+              theme={theme}
               value={appearanceDate}
               placeholder={t.add_choose}
               icon="calendar-outline"
@@ -574,8 +580,9 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_appearanceTime}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_appearanceTime}</Label>
             <PickerBtn
+              theme={theme}
               value={appearanceTime}
               placeholder="--:--"
               icon="time-outline"
@@ -584,11 +591,11 @@ export default function AddTripScreen() {
           </View>
         </View>
 
-        <Label>{t.add_lunchBreak}</Label>
+        <Label theme={theme}>{t.add_lunchBreak}</Label>
         <TextInput
-          style={s.input}
+          style={inputStyle}
           placeholder="0"
-          placeholderTextColor={C.textMute}
+          placeholderTextColor={theme.textMute}
           keyboardType="numeric"
           value={extended.lunchBreakMinutes}
           onChangeText={(v) => setExt('lunchBreakMinutes', v)}
@@ -596,11 +603,12 @@ export default function AddTripScreen() {
       </Section>
 
       {/* ─── 5: Сдача ────────────────────────────────────── */}
-      <Section title={t.add_secHandover} step={5}>
+      <Section theme={theme} title={t.add_secHandover} step={5}>
         <View style={s.row}>
           <View style={{ flex: 1.2 }}>
-            <Label style={s.colLabel}>{t.add_handoverDate}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_handoverDate}</Label>
             <PickerBtn
+              theme={theme}
               value={handoverDate}
               placeholder={t.add_choose}
               icon="calendar-outline"
@@ -609,8 +617,9 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_handoverTime}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_handoverTime}</Label>
             <PickerBtn
+              theme={theme}
               value={handoverTime}
               placeholder="--:--"
               icon="time-outline"
@@ -620,26 +629,26 @@ export default function AddTripScreen() {
         </View>
 
         {totalCycleMin !== null && totalCycleMin > 0 && (
-          <Text style={s.durationText}>{t.add_totalCycle}: {fmtDur(totalCycleMin, t)}</Text>
+          <Text style={[s.durationText, { color: theme.success }]}>{t.add_totalCycle}: {fmtDur(totalCycleMin, t)}</Text>
         )}
 
-        {timeError ? <Text style={s.errorText}>{timeError}</Text> : null}
+        {timeError ? <Text style={[s.errorText, { color: theme.danger }]}>{timeError}</Text> : null}
       </Section>
 
       {/* ─── 6: Электроэнергия ───────────────────────────── */}
-      <Section title={t.add_secElec} step={6}>
+      <Section theme={theme} title={t.add_secElec} step={6}>
         {sectionMeters.map((sm, i) => (
           <View key={i}>
             {sectionCount > 1 && (
-              <Text style={s.sectionLabel}>{t.add_section} {i + 1}</Text>
+              <Text style={[s.sectionLabel, { color: theme.textMute }]}>{t.add_section} {i + 1}</Text>
             )}
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>{t.add_elecStart}</Label>
+                <Label theme={theme} style={s.colLabel}>{t.add_elecStart}</Label>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   placeholder=""
-                  placeholderTextColor={C.textMute}
+                  placeholderTextColor={theme.textMute}
                   keyboardType="numeric"
                   value={sm.start}
                   onChangeText={(v) => setSectionMeter(i, 'start', v)}
@@ -647,11 +656,11 @@ export default function AddTripScreen() {
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>{t.add_elecEnd}</Label>
+                <Label theme={theme} style={s.colLabel}>{t.add_elecEnd}</Label>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   placeholder=""
-                  placeholderTextColor={C.textMute}
+                  placeholderTextColor={theme.textMute}
                   keyboardType="numeric"
                   value={sm.end}
                   onChangeText={(v) => setSectionMeter(i, 'end', v)}
@@ -659,20 +668,20 @@ export default function AddTripScreen() {
               </View>
             </View>
             {sectionConsumptions[i] !== null && (
-              <Text style={s.calcText}>
+              <Text style={[s.calcText, { color: theme.success }]}>
                 {t.add_consumption}{sectionCount > 1 ? ` (${t.add_section.toLowerCase()} ${i + 1})` : ''}: {sectionConsumptions[i]!.toFixed(0)} кВт·ч
               </Text>
             )}
             {sectionConsumptions[i] !== null && sectionConsumptions[i]! < 0 && (
-              <Text style={s.warnText}>{t.add_warnMeter}</Text>
+              <Text style={[s.warnText, { color: theme.warning }]}>{t.add_warnMeter}</Text>
             )}
             <View style={s.row}>
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>{t.add_recupAccepted}</Label>
+                <Label theme={theme} style={s.colLabel}>{t.add_recupAccepted}</Label>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   placeholder="кВт·ч"
-                  placeholderTextColor={C.textMute}
+                  placeholderTextColor={theme.textMute}
                   keyboardType="numeric"
                   value={sectionRecuperation[i]?.accepted ?? ''}
                   onChangeText={(v) => setSectionRecup(i, 'accepted', v)}
@@ -680,11 +689,11 @@ export default function AddTripScreen() {
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Label style={s.colLabel}>{t.add_recupDelivered}</Label>
+                <Label theme={theme} style={s.colLabel}>{t.add_recupDelivered}</Label>
                 <TextInput
-                  style={s.input}
+                  style={inputStyle}
                   placeholder="кВт·ч"
-                  placeholderTextColor={C.textMute}
+                  placeholderTextColor={theme.textMute}
                   keyboardType="numeric"
                   value={sectionRecuperation[i]?.delivered ?? ''}
                   onChangeText={(v) => setSectionRecup(i, 'delivered', v)}
@@ -695,19 +704,19 @@ export default function AddTripScreen() {
         ))}
 
         {sectionCount > 1 && totalConsumption !== null && (
-          <Text style={[s.durationText, { marginTop: 4 }]}>{t.add_totalConsumption}: {totalConsumption.toFixed(0)} кВт·ч</Text>
+          <Text style={[s.durationText, { color: theme.success, marginTop: 4 }]}>{t.add_totalConsumption}: {totalConsumption.toFixed(0)} кВт·ч</Text>
         )}
       </Section>
 
       {/* ─── 7: Проследование КП ─────────────────────────── */}
-      <Section title={t.add_secCheckpoint} step={7}>
+      <Section theme={theme} title={t.add_secCheckpoint} step={7}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_checkpointOut}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_checkpointOut}</Label>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               placeholder=""
-              placeholderTextColor={C.textMute}
+              placeholderTextColor={theme.textMute}
               keyboardType="numeric"
               value={extended.checkpointOut}
               onChangeText={(v) => setExt('checkpointOut', v)}
@@ -715,11 +724,11 @@ export default function AddTripScreen() {
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Label style={s.colLabel}>{t.add_checkpointIn}</Label>
+            <Label theme={theme} style={s.colLabel}>{t.add_checkpointIn}</Label>
             <TextInput
-              style={s.input}
+              style={inputStyle}
               placeholder=""
-              placeholderTextColor={C.textMute}
+              placeholderTextColor={theme.textMute}
               keyboardType="numeric"
               value={extended.checkpointIn}
               onChangeText={(v) => setExt('checkpointIn', v)}
@@ -730,25 +739,25 @@ export default function AddTripScreen() {
 
       {/* ─── Следование пассажиром ───────────────────────── */}
       {settings?.trackPassengerTravel && (
-        <Section title={t.add_secPassenger}>
+        <Section theme={theme} title={t.add_secPassenger}>
           <View style={s.row}>
             <View style={{ flex: 1 }}>
-              <Label style={s.colLabel}>{t.add_passengerDepart}</Label>
+              <Label theme={theme} style={s.colLabel}>{t.add_passengerDepart}</Label>
               <TextInput
-                style={s.input}
+                style={inputStyle}
                 placeholder={t.add_hhmmPlaceholder}
-                placeholderTextColor={C.textMute}
+                placeholderTextColor={theme.textMute}
                 value={extended.passengerDepartureTime}
                 onChangeText={(v) => setExt('passengerDepartureTime', v)}
               />
             </View>
             <View style={{ width: 12 }} />
             <View style={{ flex: 1 }}>
-              <Label style={s.colLabel}>{t.add_passengerArrive}</Label>
+              <Label theme={theme} style={s.colLabel}>{t.add_passengerArrive}</Label>
               <TextInput
-                style={s.input}
+                style={inputStyle}
                 placeholder={t.add_hhmmPlaceholder}
-                placeholderTextColor={C.textMute}
+                placeholderTextColor={theme.textMute}
                 value={extended.passengerArrivalTime}
                 onChangeText={(v) => setExt('passengerArrivalTime', v)}
               />
@@ -758,11 +767,11 @@ export default function AddTripScreen() {
       )}
 
       {/* ─── Примечание ──────────────────────────────────── */}
-      <Section title={t.add_secNotes}>
+      <Section theme={theme} title={t.add_secNotes}>
         <TextInput
-          style={[s.input, { minHeight: 60, textAlignVertical: 'top' }]}
+          style={[inputStyle, { minHeight: 60, textAlignVertical: 'top' }]}
           placeholder={t.detail_notOptional}
-          placeholderTextColor={C.textMute}
+          placeholderTextColor={theme.textMute}
           multiline
           value={userNotes}
           onChangeText={setUserNotes}
@@ -771,7 +780,7 @@ export default function AddTripScreen() {
 
       {/* ─── Сохранить ───────────────────────────────────── */}
       <TouchableOpacity
-        style={[s.btnPrimary, saving && { opacity: 0.5 }]}
+        style={[s.btnPrimary, { backgroundColor: theme.primary }, saving && { opacity: 0.5 }]}
         onPress={handleSave}
         disabled={saving}
       >
@@ -782,11 +791,11 @@ export default function AddTripScreen() {
       {Platform.OS === 'ios' && pickerMode ? (
         <Modal transparent animationType="slide" visible>
           <View style={s.iosOverlay}>
-            <View style={s.iosSheet}>
-              <View style={s.iosSheetHeader}>
-                <Text style={s.iosSheetTitle}>{pickerLabel(pickerMode)}</Text>
+            <View style={[s.iosSheet, { backgroundColor: theme.card }]}>
+              <View style={[s.iosSheetHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[s.iosSheetTitle, { color: theme.text }]}>{pickerLabel(pickerMode)}</Text>
                 <TouchableOpacity onPress={() => setPickerMode(null)}>
-                  <Text style={{ color: C.blue, fontSize: 16, fontWeight: '600' }}>{t.add_iosDone}</Text>
+                  <Text style={{ color: theme.primary, fontSize: 16, fontWeight: '600' }}>{t.add_iosDone}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -814,17 +823,17 @@ export default function AddTripScreen() {
   );
 }
 
-function Section({ title, step, children }: { title?: string; step?: number; children: React.ReactNode }) {
+function Section({ title, step, theme, children }: { title?: string; step?: number; theme: Theme; children: React.ReactNode }) {
   return (
-    <View style={s.card}>
+    <View style={[s.card, { backgroundColor: theme.card }]}>
       {title ? (
-        <View style={s.sectionHeader}>
+        <View style={[s.sectionHeader, { borderBottomColor: theme.border }]}>
           {step !== undefined && (
-            <View style={s.stepBadge}>
+            <View style={[s.stepBadge, { backgroundColor: theme.primaryDark }]}>
               <Text style={s.stepBadgeText}>{step}</Text>
             </View>
           )}
-          <Text style={s.sectionTitle}>{title}</Text>
+          <Text style={[s.sectionTitle, { color: theme.text }]}>{title}</Text>
         </View>
       ) : null}
       {children}
@@ -832,107 +841,99 @@ function Section({ title, step, children }: { title?: string; step?: number; chi
   );
 }
 
-function Label({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <Text style={[s.label, style]}>{children}</Text>;
+function Label({ children, style, theme }: { children: React.ReactNode; style?: object; theme: Theme }) {
+  return <Text style={[s.label, { color: theme.textDim }, style]}>{children}</Text>;
 }
 
 function PickerBtn({
-  value, placeholder, icon, onPress, highlight,
+  value, placeholder, icon, onPress, theme,
 }: {
   value: string;
   placeholder: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   onPress: () => void;
-  highlight?: boolean;
+  theme: Theme;
 }) {
   return (
     <TouchableOpacity
-      style={[s.pickerField, highlight && { borderColor: C.blue, borderWidth: 1 }]}
+      style={[s.pickerField, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Text style={[value ? s.pickerValue : s.pickerPlaceholder, { flex: 1 }]} numberOfLines={1}>
+      <Text style={[value ? s.pickerValue : s.pickerPlaceholder,
+        { color: value ? theme.text : theme.textMute, flex: 1 }]} numberOfLines={1}>
         {value || placeholder}
       </Text>
-      <View style={{ flexShrink: 0, paddingLeft: 6 }}>
-        <Ionicons name={icon} size={18} color={C.textDim} />
-      </View>
+      <Ionicons name={icon} size={18} color={theme.textDim} />
     </TouchableOpacity>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 16 },
-  header: { color: C.text, fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
+  screen: { flex: 1, paddingHorizontal: 16 },
+  header: { fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 16 },
 
-  card: { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 12 },
+  card: { borderRadius: 14, padding: 16, marginBottom: 12 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingBottom: 12, marginBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: C.line,
+    paddingBottom: 12, marginBottom: 4, borderBottomWidth: 1,
   },
   stepBadge: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: C.blueDark, alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   stepBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  sectionTitle: { color: C.text, fontSize: 14, fontWeight: '600' },
-  sectionLabel: { color: C.textMute, fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  label: { color: C.textDim, fontSize: 13, marginBottom: 5, marginTop: 10 },
-  colLabel: { color: C.textDim, fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
+  sectionTitle: { fontSize: 14, fontWeight: '600' },
+  sectionLabel: { fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { fontSize: 13, marginBottom: 5, marginTop: 10 },
+  colLabel: { fontSize: 13, marginBottom: 5, marginTop: 10, minHeight: 36 },
   input: {
-    backgroundColor: C.surface, color: C.text, borderRadius: 10,
+    borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11, fontSize: 15,
-    borderWidth: 1, borderColor: C.line,
+    borderWidth: 1,
   },
   row: { flexDirection: 'row', alignItems: 'flex-start' },
 
   routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  saveTemplate: { color: C.blue, fontSize: 13 },
+  saveTemplate: { fontSize: 13 },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 6 },
-  divLine: { flex: 1, height: 1, backgroundColor: C.line },
-  divArrow: { color: C.textMute, fontSize: 16, marginHorizontal: 8 },
+  divLine: { flex: 1, height: 1 },
+  divArrow: { fontSize: 16, marginHorizontal: 8 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.line,
-  },
-  chipActive: { backgroundColor: C.blue, borderColor: C.blue },
-  chipText: { color: C.textMute, fontSize: 13 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  chipText: { fontSize: 13 },
 
   pickerField: {
-    backgroundColor: C.surface, borderRadius: 10,
+    borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: C.line,
+    borderWidth: 1,
   },
-  pickerValue: { color: C.text, fontSize: 15 },
-  pickerPlaceholder: { color: C.textMute, fontSize: 15 },
+  pickerValue: { fontSize: 15 },
+  pickerPlaceholder: { fontSize: 15 },
 
-  errorText: { color: C.danger, fontSize: 13, marginTop: 8 },
-  warnText: { color: C.amber, fontSize: 13, marginTop: 4 },
-  durationText: { color: C.green, fontSize: 13 },
-  calcText: { color: C.green, fontSize: 13, marginTop: 4 },
+  errorText: { fontSize: 13, marginTop: 8 },
+  warnText: { fontSize: 13, marginTop: 4 },
+  durationText: { fontSize: 13 },
+  calcText: { fontSize: 13, marginTop: 4 },
 
   templateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   templateChip: {
-    flex: 1, backgroundColor: C.surface, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1, borderColor: C.line,
+    flex: 1, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1,
   },
-  templateText: { color: C.text, fontSize: 14 },
-  templateSub: { color: C.textMute, fontSize: 12, marginTop: 2 },
-  removeText: { color: C.textMute, fontSize: 14, padding: 4 },
+  templateText: { fontSize: 14 },
+  templateSub: { fontSize: 12, marginTop: 2 },
+  removeText: { fontSize: 14, padding: 4 },
 
-  btnPrimary: { backgroundColor: C.blue, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
+  btnPrimary: { borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   iosOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
-  iosSheet: { backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
+  iosSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32 },
   iosSheetHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: C.line,
+    padding: 16, borderBottomWidth: 1,
   },
-  iosSheetTitle: { color: C.text, fontSize: 16, fontWeight: '600' },
+  iosSheetTitle: { fontSize: 16, fontWeight: '600' },
 });
