@@ -140,6 +140,7 @@ export type Strings = {
   add_exTrainNumber: string;
   add_trainWeight: string;
   add_axleCount: string;
+  add_conditionalLength: string;
   add_locoModel: string;
   add_locoNumber: string;
   add_exLocoModel: string;
@@ -310,6 +311,7 @@ export type Strings = {
   detail_duration: string;
   detail_trainWeight: string;
   detail_axleCount: string;
+  detail_conditionalLength: string;
   detail_locoModel: string;
   detail_locoNumber: string;
   detail_sectionCount: string;

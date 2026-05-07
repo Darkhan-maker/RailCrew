@@ -82,9 +82,10 @@ model Trip {
   updatedAt       DateTime   @updatedAt
 
   // Work-cycle fields
-  trainNumber    String?
-  trainWeight    Float?
-  axleCount      Int?
+  trainNumber       String?
+  trainWeight       Float?
+  axleCount         Int?
+  conditionalLength Int?
   locoModel      String?
   locoNumber     String?
   appearanceDate String?    // YYYY-MM-DD

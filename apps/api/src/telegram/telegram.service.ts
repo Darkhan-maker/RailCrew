@@ -95,6 +95,7 @@ export interface ParsedTrip {
   locoModel?: string;
   locoNumber?: string;
   trainNumber?: string;
+  conditionalLength?: number;
 }
 
 export function parseTripText(text: string): ParsedTrip | null {
@@ -174,6 +175,13 @@ export function parseTripText(text: string): ParsedTrip | null {
   const trainMatch = t.match(/(?:поезд|п\.|train)\s*[№#]?\s*(\d+)/iu);
   if (trainMatch) trainNumber = trainMatch[1];
 
+  // "усл 71", "услов 71", "условных 71" OR "71 усл", "71 усл." etc.
+  let conditionalLength: number | undefined;
+  const condPrefixMatch = t.match(/\bусл(?:ов(?:ных|но|ная|ный)?)?\b\.?\s+(\d+)/iu);
+  const condSuffixMatch = t.match(/\b(\d+)\s+усл(?:ов(?:ных|но|ная|ный)?)?\b\.?/iu);
+  if (condPrefixMatch) conditionalLength = parseInt(condPrefixMatch[1], 10);
+  else if (condSuffixMatch) conditionalLength = parseInt(condSuffixMatch[1], 10);
+
   // endDate = handoverDate when it differs from the явка date
   const endDate = handoverDate && handoverDate !== date ? handoverDate : undefined;
 
@@ -191,6 +199,7 @@ export function parseTripText(text: string): ParsedTrip | null {
     locoModel,
     locoNumber,
     trainNumber,
+    conditionalLength,
   };
 }
 
@@ -263,6 +272,7 @@ export class TelegramService {
       trainNumber: parsed.trainNumber,
       handoverDate: parsed.handoverDate,
       handoverTime: parsed.handoverTime,
+      conditionalLength: parsed.conditionalLength,
     };
 
     const trip = await this.tripsService.create(userId, dto);

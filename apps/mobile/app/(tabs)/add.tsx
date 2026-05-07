@@ -54,6 +54,7 @@ type ExtendedFields = {
   trainNumber: string;
   trainWeight: string;
   axleCount: string;
+  conditionalLength: string;
   locoModel: string;
   locoNumber: string;
   lunchBreakMinutes: string;
@@ -113,6 +114,7 @@ export default function AddTripScreen() {
     trainNumber: params.trainNumber ?? '',
     trainWeight: params.trainWeight ?? '',
     axleCount: params.axleCount ?? '',
+    conditionalLength: '',
     locoModel: params.locoModel ?? '',
     locoNumber: params.locoNumber ?? '',
     lunchBreakMinutes: '',
@@ -361,6 +363,7 @@ export default function AddTripScreen() {
       trainNumber: extended.trainNumber || undefined,
       trainWeight: extended.trainWeight ? parseFloat(extended.trainWeight) : undefined,
       axleCount: extended.axleCount ? parseInt(extended.axleCount, 10) : undefined,
+      conditionalLength: extended.conditionalLength ? parseInt(extended.conditionalLength, 10) : undefined,
       locoModel: extended.locoModel || undefined,
       locoNumber: extended.locoNumber || undefined,
       appearanceDate: appearanceTime ? appearanceDate : undefined,
@@ -425,6 +428,7 @@ export default function AddTripScreen() {
         trainNumber: extended.trainNumber || undefined,
         trainWeight: extended.trainWeight ? parseFloat(extended.trainWeight) : undefined,
         axleCount: extended.axleCount ? parseInt(extended.axleCount, 10) : undefined,
+        conditionalLength: extended.conditionalLength ? parseInt(extended.conditionalLength, 10) : undefined,
         sectionCount,
         sectionMeters: sectionMeters.map((sm) => ({
           start: sm.start ? parseFloat(sm.start) : undefined,
@@ -563,7 +567,7 @@ export default function AddTripScreen() {
               onChangeText={(v) => setExt('trainWeight', v)}
             />
           </View>
-          <View style={{ width: 12 }} />
+          <View style={{ width: 10 }} />
           <View style={{ flex: 1 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_axleCount}</Label>
             <TextInput
@@ -573,6 +577,18 @@ export default function AddTripScreen() {
               keyboardType="numeric"
               value={extended.axleCount}
               onChangeText={(v) => setExt('axleCount', v)}
+            />
+          </View>
+          <View style={{ width: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Label theme={theme} style={s.colLabel}>{t.add_conditionalLength}</Label>
+            <TextInput
+              style={inputStyle}
+              placeholder=""
+              placeholderTextColor={theme.textMute}
+              keyboardType="numeric"
+              value={extended.conditionalLength}
+              onChangeText={(v) => setExt('conditionalLength', v)}
             />
           </View>
         </View>

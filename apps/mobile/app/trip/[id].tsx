@@ -315,6 +315,7 @@ export default function TripDetailScreen() {
             <SectionTitle theme={theme}>{t.detail_secTrain}</SectionTitle>
             <InfoRow theme={theme} label={t.detail_trainWeight} value={trip.trainWeight != null ? String(trip.trainWeight) : t.detail_notSpecified} dim={trip.trainWeight == null} />
             <InfoRow theme={theme} label={t.detail_axleCount} value={trip.axleCount != null ? String(trip.axleCount) : t.detail_notSpecified} dim={trip.axleCount == null} />
+            <InfoRow theme={theme} label={t.detail_conditionalLength} value={trip.conditionalLength != null ? `${trip.conditionalLength} усл. ваг.` : t.detail_notSpecified} dim={trip.conditionalLength == null} />
           </View>
 
           {/* Loco */}
@@ -509,13 +510,25 @@ export default function TripDetailScreen() {
                   keyboardType="numeric"
                 />
               </View>
-              <View style={{ width: 12 }} />
+              <View style={{ width: 10 }} />
               <View style={{ flex: 1 }}>
                 <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_axleCount}</Text>
                 <TextInput
                   style={inputStyle}
                   value={draft.axleCount?.toString() ?? ''}
                   onChangeText={(v) => setField('axleCount', v ? parseInt(v, 10) : undefined)}
+                  placeholderTextColor={theme.textMute}
+                  placeholder="0"
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={{ width: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_conditionalLength}</Text>
+                <TextInput
+                  style={inputStyle}
+                  value={draft.conditionalLength?.toString() ?? ''}
+                  onChangeText={(v) => setField('conditionalLength', v ? parseInt(v, 10) : undefined)}
                   placeholderTextColor={theme.textMute}
                   placeholder="0"
                   keyboardType="numeric"
