@@ -115,8 +115,8 @@ model Trip {
   recuperation2Delivered  Float?
   recuperation3Accepted   Float?
   recuperation3Delivered  Float?
-  checkpointOut           Float?
-  checkpointIn            Float?
+  checkpointOut           String?  // HH:mm
+  checkpointIn            String?  // HH:mm
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

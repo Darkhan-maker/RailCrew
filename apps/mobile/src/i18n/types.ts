@@ -358,6 +358,9 @@ export type Strings = {
   detail_iosDone: string;
   detail_notOptional: string;
   detail_notSpecified: string;
+  detail_secCheckpoint: string;
+  detail_checkpointOut: string;
+  detail_checkpointIn: string;
   // Calculator
   calc_title: string;
   calc_totalHours: string;

@@ -73,8 +73,8 @@ export const TripSchema = z.object({
   recuperation2Delivered: z.number().nullish(),
   recuperation3Accepted: z.number().nullish(),
   recuperation3Delivered: z.number().nullish(),
-  checkpointOut: z.number().nullish(),
-  checkpointIn: z.number().nullish(),
+  checkpointOut: HHmm.nullish(),
+  checkpointIn: HHmm.nullish(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 
@@ -120,8 +120,8 @@ export const CreateTripDtoSchema = z.object({
   recuperation2Delivered: z.number().optional(),
   recuperation3Accepted: z.number().optional(),
   recuperation3Delivered: z.number().optional(),
-  checkpointOut: z.number().optional(),
-  checkpointIn: z.number().optional(),
+  checkpointOut: HHmm.optional(),
+  checkpointIn: HHmm.optional(),
 });
 export type CreateTripDto = z.infer<typeof CreateTripDtoSchema>;
 

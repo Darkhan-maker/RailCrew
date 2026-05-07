@@ -32,6 +32,7 @@ const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
 type PickerMode =
   | 'appearanceDate' | 'appearanceTime'
   | 'handoverDate' | 'handoverTime'
+  | 'checkpointOut' | 'checkpointIn'
   | null;
 
 function calcDurationFull(
@@ -104,6 +105,14 @@ export default function TripDetailScreen() {
     }
     if (mode === 'handoverTime') {
       setDraft((d) => ({ ...d, handoverTime: timeStr }));
+      return;
+    }
+    if (mode === 'checkpointOut') {
+      setDraft((d) => ({ ...d, checkpointOut: timeStr }));
+      return;
+    }
+    if (mode === 'checkpointIn') {
+      setDraft((d) => ({ ...d, checkpointIn: timeStr }));
     }
   }
 
@@ -122,6 +131,14 @@ export default function TripDetailScreen() {
     }
     if (pickerMode === 'handoverTime' && draft.handoverTime) {
       const [h, m] = draft.handoverTime.split(':').map(Number);
+      const d = new Date(); d.setHours(h, m, 0, 0); return d;
+    }
+    if (pickerMode === 'checkpointOut' && draft.checkpointOut) {
+      const [h, m] = (draft.checkpointOut as string).split(':').map(Number);
+      const d = new Date(); d.setHours(h, m, 0, 0); return d;
+    }
+    if (pickerMode === 'checkpointIn' && draft.checkpointIn) {
+      const [h, m] = (draft.checkpointIn as string).split(':').map(Number);
       const d = new Date(); d.setHours(h, m, 0, 0); return d;
     }
     return new Date();
@@ -173,6 +190,8 @@ export default function TripDetailScreen() {
       handoverTime: draft.handoverTime ?? undefined,
       sectionCount: draft.sectionCount ?? undefined,
       sectionMeters: draft.sectionMeters,
+      checkpointOut: draft.checkpointOut ? String(draft.checkpointOut) : undefined,
+      checkpointIn: draft.checkpointIn ? String(draft.checkpointIn) : undefined,
     };
     setSaving(true);
     try {
@@ -261,6 +280,8 @@ export default function TripDetailScreen() {
       case 'appearanceTime': return t.detail_appearanceTime;
       case 'handoverDate': return t.detail_handoverDate;
       case 'handoverTime': return t.detail_handoverTime;
+      case 'checkpointOut': return t.detail_checkpointOut;
+      case 'checkpointIn': return t.detail_checkpointIn;
       default: return '';
     }
   }
@@ -389,6 +410,15 @@ export default function TripDetailScreen() {
               );
             })()}
           </View>
+
+          {/* Checkpoint */}
+          {(trip.checkpointOut || trip.checkpointIn) ? (
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>{t.detail_secCheckpoint}</SectionTitle>
+              <InfoRow theme={theme} label={t.detail_checkpointOut} value={trip.checkpointOut ? String(trip.checkpointOut) : t.detail_notSpecified} dim={!trip.checkpointOut} />
+              <InfoRow theme={theme} label={t.detail_checkpointIn} value={trip.checkpointIn ? String(trip.checkpointIn) : t.detail_notSpecified} dim={!trip.checkpointIn} />
+            </View>
+          ) : null}
 
           {/* Notes */}
           <View style={cardStyle}>
@@ -679,6 +709,40 @@ export default function TripDetailScreen() {
                   placeholder="0"
                   keyboardType="numeric"
                 />
+              </View>
+            </View>
+          </View>
+
+          {/* Checkpoint edit */}
+          <View style={cardStyle}>
+            <SectionTitle theme={theme}>{t.detail_secCheckpoint}</SectionTitle>
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_checkpointOut}</Text>
+                <TouchableOpacity
+                  style={[s.pickerField, { backgroundColor: theme.surface }]}
+                  onPress={() => setPickerMode('checkpointOut')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerValue, { color: draft.checkpointOut ? theme.text : theme.textMute }]} numberOfLines={1}>
+                    {draft.checkpointOut ? String(draft.checkpointOut) : '--:--'}
+                  </Text>
+                  <Ionicons name="time-outline" size={18} color={theme.textDim} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ width: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.colLabel, { color: theme.textMute }]}>{t.detail_checkpointIn}</Text>
+                <TouchableOpacity
+                  style={[s.pickerField, { backgroundColor: theme.surface }]}
+                  onPress={() => setPickerMode('checkpointIn')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.pickerValue, { color: draft.checkpointIn ? theme.text : theme.textMute }]} numberOfLines={1}>
+                    {draft.checkpointIn ? String(draft.checkpointIn) : '--:--'}
+                  </Text>
+                  <Ionicons name="time-outline" size={18} color={theme.textDim} />
+                </TouchableOpacity>
               </View>
             </View>
           </View>

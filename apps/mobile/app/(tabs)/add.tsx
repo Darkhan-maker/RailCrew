@@ -44,6 +44,8 @@ function parseTimeStr(timeStr: string): Date {
 type PickerMode =
   | 'appearanceDate' | 'appearanceTime'
   | 'handoverDate' | 'handoverTime'
+  | 'checkpointOut' | 'checkpointIn'
+  | 'passengerDepart' | 'passengerArrive'
   | null;
 
 type SectionMeterStr = { start: string; end: string };
@@ -267,6 +269,18 @@ export default function AddTripScreen() {
       case 'handoverTime':
         setHandoverTime(format(selected, 'HH:mm'));
         break;
+      case 'checkpointOut':
+        setExt('checkpointOut', format(selected, 'HH:mm'));
+        break;
+      case 'checkpointIn':
+        setExt('checkpointIn', format(selected, 'HH:mm'));
+        break;
+      case 'passengerDepart':
+        setExt('passengerDepartureTime', format(selected, 'HH:mm'));
+        break;
+      case 'passengerArrive':
+        setExt('passengerArrivalTime', format(selected, 'HH:mm'));
+        break;
     }
   }
 
@@ -276,6 +290,10 @@ export default function AddTripScreen() {
       case 'appearanceTime': return appearanceTime ? parseTimeStr(appearanceTime) : new Date();
       case 'handoverDate': return parseDateStr(handoverDate);
       case 'handoverTime': return handoverTime ? parseTimeStr(handoverTime) : new Date();
+      case 'checkpointOut': return extended.checkpointOut ? parseTimeStr(extended.checkpointOut) : new Date();
+      case 'checkpointIn': return extended.checkpointIn ? parseTimeStr(extended.checkpointIn) : new Date();
+      case 'passengerDepart': return extended.passengerDepartureTime ? parseTimeStr(extended.passengerDepartureTime) : new Date();
+      case 'passengerArrive': return extended.passengerArrivalTime ? parseTimeStr(extended.passengerArrivalTime) : new Date();
       default: return new Date();
     }
   }
@@ -291,6 +309,10 @@ export default function AddTripScreen() {
       case 'appearanceTime': return t.add_appearanceTime;
       case 'handoverDate': return t.add_handoverDate;
       case 'handoverTime': return t.add_handoverTime;
+      case 'checkpointOut': return t.add_checkpointOut;
+      case 'checkpointIn': return t.add_checkpointIn;
+      case 'passengerDepart': return t.add_passengerDepart;
+      case 'passengerArrive': return t.add_passengerArrive;
       default: return '';
     }
   }
@@ -328,8 +350,6 @@ export default function AddTripScreen() {
     if (!isNumericStr(extended.trainWeight)) { Alert.alert(t.common_error, t.add_errWeight); return; }
     if (!isNumericStr(extended.axleCount)) { Alert.alert(t.common_error, t.add_errAxle); return; }
     if (!isNumericStr(extended.lunchBreakMinutes)) { Alert.alert(t.common_error, t.add_errLunch); return; }
-    if (!isNumericStr(extended.checkpointOut)) { Alert.alert(t.common_error, t.add_errCheckpointOut); return; }
-    if (!isNumericStr(extended.checkpointIn)) { Alert.alert(t.common_error, t.add_errCheckpointIn); return; }
 
     const meterErr = validateSectionMeters(sectionMeters);
     if (meterErr) { Alert.alert(t.add_errMeters, meterErr); return; }
@@ -378,8 +398,8 @@ export default function AddTripScreen() {
       meterStart: sm0?.start ? parseFloat(sm0.start) : undefined,
       meterEnd: sm0?.end ? parseFloat(sm0.end) : undefined,
       lunchBreakMinutes: extended.lunchBreakMinutes ? parseInt(extended.lunchBreakMinutes, 10) : undefined,
-      checkpointOut: extended.checkpointOut ? parseFloat(extended.checkpointOut) : undefined,
-      checkpointIn: extended.checkpointIn ? parseFloat(extended.checkpointIn) : undefined,
+      checkpointOut: extended.checkpointOut || undefined,
+      checkpointIn: extended.checkpointIn || undefined,
       recuperation1Accepted: r0?.accepted ? parseFloat(r0.accepted) : undefined,
       recuperation1Delivered: r0?.delivered ? parseFloat(r0.delivered) : undefined,
       recuperation2Accepted: r1?.accepted ? parseFloat(r1.accepted) : undefined,
@@ -802,25 +822,23 @@ export default function AddTripScreen() {
         <View style={s.row}>
           <View style={{ flex: 1 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_checkpointOut}</Label>
-            <TextInput
-              style={inputStyle}
-              placeholder=""
-              placeholderTextColor={theme.textMute}
-              keyboardType="numeric"
+            <PickerBtn
+              theme={theme}
               value={extended.checkpointOut}
-              onChangeText={(v) => setExt('checkpointOut', v)}
+              placeholder="--:--"
+              icon="time-outline"
+              onPress={() => setPickerMode('checkpointOut')}
             />
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
             <Label theme={theme} style={s.colLabel}>{t.add_checkpointIn}</Label>
-            <TextInput
-              style={inputStyle}
-              placeholder=""
-              placeholderTextColor={theme.textMute}
-              keyboardType="numeric"
+            <PickerBtn
+              theme={theme}
               value={extended.checkpointIn}
-              onChangeText={(v) => setExt('checkpointIn', v)}
+              placeholder="--:--"
+              icon="time-outline"
+              onPress={() => setPickerMode('checkpointIn')}
             />
           </View>
         </View>
@@ -832,23 +850,23 @@ export default function AddTripScreen() {
           <View style={s.row}>
             <View style={{ flex: 1 }}>
               <Label theme={theme} style={s.colLabel}>{t.add_passengerDepart}</Label>
-              <TextInput
-                style={inputStyle}
-                placeholder={t.add_hhmmPlaceholder}
-                placeholderTextColor={theme.textMute}
+              <PickerBtn
+                theme={theme}
                 value={extended.passengerDepartureTime}
-                onChangeText={(v) => setExt('passengerDepartureTime', v)}
+                placeholder="--:--"
+                icon="time-outline"
+                onPress={() => setPickerMode('passengerDepart')}
               />
             </View>
             <View style={{ width: 12 }} />
             <View style={{ flex: 1 }}>
               <Label theme={theme} style={s.colLabel}>{t.add_passengerArrive}</Label>
-              <TextInput
-                style={inputStyle}
-                placeholder={t.add_hhmmPlaceholder}
-                placeholderTextColor={theme.textMute}
+              <PickerBtn
+                theme={theme}
                 value={extended.passengerArrivalTime}
-                onChangeText={(v) => setExt('passengerArrivalTime', v)}
+                placeholder="--:--"
+                icon="time-outline"
+                onPress={() => setPickerMode('passengerArrive')}
               />
             </View>
           </View>
