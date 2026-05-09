@@ -11,7 +11,7 @@ import { useTripsStore } from '@/store/trips.store';
 import {
   localRoutesStorage, LocalRoute,
   localSettingsStorage, LocalSettings,
-  LocalCreateTripDto,
+  LocalCreateTripDto, LocalSegment,
 } from '@/services/storage.service';
 import { CreateTripDto, TripType, TripTypeLabelMap, CreateTripDtoSchema, AppearanceType } from '@railcrew/contracts';
 import { todayISO } from '@/utils/date';
@@ -19,6 +19,49 @@ import { useLang, fmtDur } from '@/i18n';
 import { useTheme, Theme } from '@/theme';
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
+
+type SegmentType = 'DRIVING' | 'PASSENGER' | 'RESERVE' | 'WAITING' | 'TARIFF';
+const SEGMENT_TYPES: SegmentType[] = ['DRIVING', 'PASSENGER', 'RESERVE', 'WAITING', 'TARIFF'];
+
+type SegmentDraft = {
+  segmentType: SegmentType;
+  startTime: string;
+  endTime: string;
+  distanceKm: string;
+  trainWeightTons: string;
+  notes: string;
+};
+
+const DEFAULT_SEG_DRAFT: SegmentDraft = {
+  segmentType: 'DRIVING',
+  startTime: '',
+  endTime: '',
+  distanceKm: '',
+  trainWeightTons: '',
+  notes: '',
+};
+
+const SEG_COLORS: Record<SegmentType, string> = {
+  DRIVING: '#3B82F6',
+  PASSENGER: '#10B981',
+  RESERVE: '#F59E0B',
+  WAITING: '#6B7280',
+  TARIFF: '#8B5CF6',
+};
+
+function segTypeLabel(
+  type: string,
+  t: { segmentType_DRIVING: string; segmentType_PASSENGER: string; segmentType_RESERVE: string; segmentType_WAITING: string; segmentType_TARIFF: string },
+): string {
+  const map: Record<string, string> = {
+    DRIVING: t.segmentType_DRIVING,
+    PASSENGER: t.segmentType_PASSENGER,
+    RESERVE: t.segmentType_RESERVE,
+    WAITING: t.segmentType_WAITING,
+    TARIFF: t.segmentType_TARIFF,
+  };
+  return map[type] ?? type;
+}
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -149,6 +192,11 @@ export default function AddTripScreen() {
   const [timeError, setTimeError] = useState('');
   const [routes, setRoutes] = useState<LocalRoute[]>([]);
   const [settings, setSettings] = useState<LocalSettings | null>(null);
+  const [segments, setSegments] = useState<LocalSegment[]>([]);
+  const [segmentModal, setSegmentModal] = useState(false);
+  const [editingSegmentIdx, setEditingSegmentIdx] = useState<number | null>(null);
+  const [segDraft, setSegDraft] = useState<SegmentDraft>({ ...DEFAULT_SEG_DRAFT });
+  const [segPickerField, setSegPickerField] = useState<'start' | 'end' | null>(null);
   const { addTrip } = useTripsStore();
 
   // Collapsible sections — 1, 2, 3 open by default; 4–7 collapsed
@@ -229,6 +277,95 @@ export default function AddTripScreen() {
       next[idx] = { ...next[idx], [field]: value };
       return next;
     });
+  }
+
+  function openAddSegment() {
+    setEditingSegmentIdx(null);
+    setSegDraft({ ...DEFAULT_SEG_DRAFT });
+    setSegmentModal(true);
+  }
+
+  function openEditSegment(idx: number) {
+    const seg = segments[idx];
+    setEditingSegmentIdx(idx);
+    setSegDraft({
+      segmentType: seg.segmentType as SegmentType,
+      startTime: seg.startTime,
+      endTime: seg.endTime,
+      distanceKm: seg.distanceKm != null ? String(seg.distanceKm) : '',
+      trainWeightTons: seg.trainWeightTons != null ? String(seg.trainWeightTons) : '',
+      notes: seg.notes ?? '',
+    });
+    setSegmentModal(true);
+  }
+
+  function closeSegmentModal() {
+    setSegmentModal(false);
+    setSegPickerField(null);
+  }
+
+  function handleSegPickerChange(_: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === 'android') setSegPickerField(null);
+    if (!selected || !segPickerField) return;
+    setSegDraft((prev) => ({
+      ...prev,
+      [segPickerField === 'start' ? 'startTime' : 'endTime']: format(selected, 'HH:mm'),
+    }));
+  }
+
+  function segPickerValue(): Date {
+    const timeStr = segPickerField === 'start' ? segDraft.startTime : segDraft.endTime;
+    return timeStr && /^\d{2}:\d{2}$/.test(timeStr) ? parseTimeStr(timeStr) : new Date();
+  }
+
+  function segDraftDurationMin(): number | null {
+    const { startTime, endTime } = segDraft;
+    if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return null;
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    let diff = (eh * 60 + em) - (sh * 60 + sm);
+    if (diff <= 0) diff += 24 * 60;
+    return diff;
+  }
+
+  function saveSegment() {
+    const { segmentType, startTime, endTime, distanceKm, trainWeightTons, notes } = segDraft;
+    if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+      Alert.alert(t.common_error, 'Укажите время начала и окончания');
+      return;
+    }
+    const [sh, sm] = startTime.split(':').map(Number);
+    const [eh, em] = endTime.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    let durationMinutes = endMin - startMin;
+    if (durationMinutes <= 0) durationMinutes += 24 * 60;
+
+    const startDate = appearanceDate;
+    const endDate = endMin <= startMin
+      ? format(new Date(new Date(`${startDate}T00:00:00`).getTime() + 86400000), 'yyyy-MM-dd')
+      : undefined;
+
+    const newSeg: LocalSegment = {
+      id: `seg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      order: editingSegmentIdx !== null ? segments[editingSegmentIdx].order : segments.length,
+      segmentType,
+      startTime,
+      endTime,
+      startDate,
+      endDate,
+      durationMinutes,
+      distanceKm: distanceKm ? parseFloat(distanceKm) : undefined,
+      trainWeightTons: trainWeightTons ? parseFloat(trainWeightTons) : undefined,
+      notes: notes.trim() || undefined,
+    };
+
+    if (editingSegmentIdx !== null) {
+      setSegments((prev) => prev.map((s, i) => i === editingSegmentIdx ? newSeg : s));
+    } else {
+      setSegments((prev) => [...prev, newSeg]);
+    }
+    closeSegmentModal();
   }
 
   function applyTemplate(route: LocalRoute) {
@@ -400,6 +537,7 @@ export default function AddTripScreen() {
       lunchBreakMinutes: extended.lunchBreakMinutes ? parseInt(extended.lunchBreakMinutes, 10) : undefined,
       checkpointOut: extended.checkpointOut || undefined,
       checkpointIn: extended.checkpointIn || undefined,
+      segments: segments.length > 0 ? segments : undefined,
       recuperation1Accepted: r0?.accepted ? parseFloat(r0.accepted) : undefined,
       recuperation1Delivered: r0?.delivered ? parseFloat(r0.delivered) : undefined,
       recuperation2Accepted: r1?.accepted ? parseFloat(r1.accepted) : undefined,
@@ -434,7 +572,7 @@ export default function AddTripScreen() {
     setSaving(true);
     try {
       const sm0 = sectionMeters[0];
-      const draftDto: LocalCreateTripDto = {
+      const draftDto = {
         routeFrom: fields.routeFrom?.trim() || '',
         routeTo: fields.routeTo?.trim() || '',
         tripType: fields.tripType ?? 'FREIGHT',
@@ -461,7 +599,8 @@ export default function AddTripScreen() {
         handoverDate: handoverTime ? handoverDate : undefined,
         handoverTime: handoverTime || undefined,
         notes: userNotes.trim() || undefined,
-      };
+        segments: segments.length > 0 ? segments : undefined,
+      } as unknown as LocalCreateTripDto;
       await addTrip(draftDto, false);
       router.replace('/(tabs)/trips');
     } catch {
@@ -571,6 +710,34 @@ export default function AddTripScreen() {
           value={extended.trainNumber}
           onChangeText={(v) => setExt('trainNumber', v)}
         />
+      </Section>
+
+      {/* ─── Сегменты смены ──────────────────────────────── */}
+      <Section theme={theme} title={t.add_secSegments}>
+        {segments.length > 0 && (
+          <View style={{ gap: 8, marginBottom: 8 }}>
+            {segments.map((seg, idx) => (
+              <SegmentCard
+                key={seg.id}
+                segment={seg}
+                typeLabel={segTypeLabel(seg.segmentType, t)}
+                durationStr={fmtDur(seg.durationMinutes, t)}
+                theme={theme}
+                onEdit={() => openEditSegment(idx)}
+                onDelete={() => setSegments((prev) =>
+                  prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, order: i }))
+                )}
+              />
+            ))}
+          </View>
+        )}
+        <TouchableOpacity
+          style={[s.addSegBtn, { borderColor: theme.primary }]}
+          onPress={openAddSegment}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.addSegBtnText, { color: theme.primary }]}>{t.add_addSegment}</Text>
+        </TouchableOpacity>
       </Section>
 
       {/* ─── 2: Состав поезда ────────────────────────────── */}
@@ -918,6 +1085,151 @@ export default function AddTripScreen() {
         )}
       </TouchableOpacity>
 
+      {/* ─── Segment Form Modal ──────────────────────────── */}
+      <Modal visible={segmentModal} animationType="slide" transparent onRequestClose={closeSegmentModal}>
+        <View style={s.segOverlay}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}>
+            <View style={[s.segSheet, { backgroundColor: theme.card }]}>
+              <View style={s.segHeader}>
+                <Text style={[s.segTitle, { color: theme.text }]}>
+                  {editingSegmentIdx !== null ? t.add_segmentEdit : t.add_addSegment}
+                </Text>
+                <TouchableOpacity onPress={closeSegmentModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={22} color={theme.textMute} />
+                </TouchableOpacity>
+              </View>
+
+              <Label theme={theme}>{t.add_segmentType}</Label>
+              <View style={s.chipRow}>
+                {SEGMENT_TYPES.map((sType) => (
+                  <TouchableOpacity
+                    key={sType}
+                    style={[s.chip, { backgroundColor: theme.surface, borderColor: theme.border },
+                      segDraft.segmentType === sType && { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                    onPress={() => setSegDraft((prev) => ({ ...prev, segmentType: sType }))}
+                  >
+                    <Text style={[s.chipText, { color: theme.textMute },
+                      segDraft.segmentType === sType && { color: '#fff', fontWeight: '600' }]}>
+                      {segTypeLabel(sType, t)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={s.row}>
+                <View style={{ flex: 1 }}>
+                  <Label theme={theme} style={s.colLabel}>{t.add_segmentStart}</Label>
+                  <PickerBtn
+                    theme={theme}
+                    value={segDraft.startTime}
+                    placeholder="--:--"
+                    icon="time-outline"
+                    onPress={() => setSegPickerField('start')}
+                  />
+                </View>
+                <View style={{ width: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Label theme={theme} style={s.colLabel}>{t.add_segmentEnd}</Label>
+                  <PickerBtn
+                    theme={theme}
+                    value={segDraft.endTime}
+                    placeholder="--:--"
+                    icon="time-outline"
+                    onPress={() => setSegPickerField('end')}
+                  />
+                </View>
+              </View>
+
+              {segDraftDurationMin() !== null && (
+                <Text style={[s.durationText, { color: theme.success, marginTop: 4 }]}>
+                  {t.add_segmentDuration}: {fmtDur(segDraftDurationMin()!, t)}
+                </Text>
+              )}
+
+              {segDraft.segmentType === 'DRIVING' && (
+                <View style={s.row}>
+                  <View style={{ flex: 1 }}>
+                    <Label theme={theme} style={s.colLabel}>{t.add_segmentDistance}</Label>
+                    <TextInput
+                      style={[s.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+                      placeholder="0"
+                      placeholderTextColor={theme.textMute}
+                      keyboardType="numeric"
+                      value={segDraft.distanceKm}
+                      onChangeText={(v) => setSegDraft((prev) => ({ ...prev, distanceKm: v }))}
+                    />
+                  </View>
+                  <View style={{ width: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Label theme={theme} style={s.colLabel}>{t.add_segmentWeight}</Label>
+                    <TextInput
+                      style={[s.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
+                      placeholder="0"
+                      placeholderTextColor={theme.textMute}
+                      keyboardType="numeric"
+                      value={segDraft.trainWeightTons}
+                      onChangeText={(v) => setSegDraft((prev) => ({ ...prev, trainWeightTons: v }))}
+                    />
+                  </View>
+                </View>
+              )}
+
+              <Label theme={theme}>{t.add_segmentNotes}</Label>
+              <TextInput
+                style={[s.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border, minHeight: 50, textAlignVertical: 'top' }]}
+                placeholder={t.detail_notOptional}
+                placeholderTextColor={theme.textMute}
+                multiline
+                value={segDraft.notes}
+                onChangeText={(v) => setSegDraft((prev) => ({ ...prev, notes: v }))}
+              />
+
+              <TouchableOpacity
+                style={[s.btnPrimary, { backgroundColor: theme.primary, marginTop: 16 }]}
+                onPress={saveSegment}
+              >
+                <Text style={[s.btnPrimaryText, { color: '#fff' }]}>{t.add_segmentSave}</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ─── Segment time picker ─────────────────────────── */}
+      {segPickerField !== null && (
+        Platform.OS === 'ios' ? (
+          <Modal transparent animationType="slide" visible>
+            <View style={s.iosOverlay}>
+              <View style={[s.iosSheet, { backgroundColor: theme.card }]}>
+                <View style={[s.iosSheetHeader, { borderBottomColor: theme.border }]}>
+                  <Text style={[s.iosSheetTitle, { color: theme.text }]}>
+                    {segPickerField === 'start' ? t.add_segmentStart : t.add_segmentEnd}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSegPickerField(null)}>
+                    <Text style={{ color: theme.primary, fontSize: 16, fontWeight: '600' }}>{t.add_iosDone}</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={segPickerValue()}
+                  mode="time"
+                  is24Hour
+                  display="spinner"
+                  onChange={handleSegPickerChange}
+                />
+              </View>
+            </View>
+          </Modal>
+        ) : (
+          <DateTimePicker
+            value={segPickerValue()}
+            mode="time"
+            is24Hour
+            display="default"
+            onChange={handleSegPickerChange}
+          />
+        )
+      )}
+
       {/* ─── DateTimePicker ──────────────────────────────── */}
       {Platform.OS === 'ios' && pickerMode ? (
         <Modal transparent animationType="slide" visible>
@@ -1024,6 +1336,45 @@ function PickerBtn({
   );
 }
 
+function SegmentCard({
+  segment, typeLabel, durationStr, theme, onEdit, onDelete,
+}: {
+  segment: LocalSegment;
+  typeLabel: string;
+  durationStr: string;
+  theme: Theme;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const color = SEG_COLORS[segment.segmentType as SegmentType] ?? '#6B7280';
+  return (
+    <TouchableOpacity
+      style={[s.segCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={onEdit}
+      activeOpacity={0.75}
+    >
+      <View style={{ flex: 1 }}>
+        <View style={[s.segTypeBadge, { backgroundColor: color + '20' }]}>
+          <Text style={[s.segTypeText, { color }]}>{typeLabel}</Text>
+        </View>
+        <Text style={[s.segTime, { color: theme.text }]}>{segment.startTime} – {segment.endTime}</Text>
+        <Text style={[s.segDurText, { color: theme.textMute }]}>{durationStr}</Text>
+        {segment.segmentType === 'DRIVING' && (segment.distanceKm || segment.trainWeightTons) && (
+          <Text style={[s.segExtraText, { color: theme.textMute }]}>
+            {[
+              segment.distanceKm ? `${segment.distanceKm} км` : null,
+              segment.trainWeightTons ? `${segment.trainWeightTons} т` : null,
+            ].filter(Boolean).join(' · ')}
+          </Text>
+        )}
+      </View>
+      <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={[s.segDeleteBtn, { color: theme.danger }]}>✕</Text>
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
 const s = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 16 },
   header: { fontSize: 24, fontWeight: 'bold', marginTop: 48, marginBottom: 12 },
@@ -1098,4 +1449,30 @@ const s = StyleSheet.create({
     padding: 16, borderBottomWidth: 1,
   },
   iosSheetTitle: { fontSize: 16, fontWeight: '600' },
+
+  // Segment styles
+  segCard: {
+    flexDirection: 'row', alignItems: 'center', borderRadius: 10,
+    padding: 12, borderWidth: 1, gap: 8,
+  },
+  segTypeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, marginBottom: 4 },
+  segTypeText: { fontSize: 12, fontWeight: '600' },
+  segTime: { fontSize: 14, fontWeight: '500' },
+  segDurText: { fontSize: 12, marginTop: 1 },
+  segExtraText: { fontSize: 12, marginTop: 1 },
+  segDeleteBtn: { fontSize: 16, padding: 4 },
+  addSegBtn: {
+    borderWidth: 1, borderRadius: 10, padding: 10,
+    alignItems: 'center', borderStyle: 'dashed',
+  },
+  addSegBtnText: { fontSize: 14, fontWeight: '500' },
+
+  // Segment modal styles
+  segOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  segSheet: {
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 16, paddingBottom: 40,
+  },
+  segHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  segTitle: { fontSize: 17, fontWeight: '600' },
 });

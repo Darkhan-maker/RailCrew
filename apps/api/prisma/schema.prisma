@@ -118,10 +118,32 @@ model Trip {
   checkpointOut           String?  // HH:mm
   checkpointIn            String?  // HH:mm
 
+  segments TripSegment[]
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
   @@map("trips")
+}
+
+model TripSegment {
+  id              String  @id @default(uuid())
+  tripId          String
+  order           Int
+  segmentType     String  // DRIVING | PASSENGER | RESERVE | WAITING | TARIFF
+  startTime       String  // HH:mm
+  endTime         String  // HH:mm
+  startDate       String  // YYYY-MM-DD
+  endDate         String? // YYYY-MM-DD
+  durationMinutes Int
+  distanceKm      Float?
+  trainWeightTons Float?
+  notes           String?
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_segments")
 }
 
 model SalaryRule {

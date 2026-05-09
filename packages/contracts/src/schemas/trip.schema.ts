@@ -1,5 +1,38 @@
 import { z } from 'zod';
 
+export const SegmentTypeSchema = z.enum(['DRIVING', 'PASSENGER', 'RESERVE', 'WAITING', 'TARIFF']);
+export type SegmentType = z.infer<typeof SegmentTypeSchema>;
+
+export const TripSegmentSchema = z.object({
+  id: z.string(),
+  tripId: z.string(),
+  order: z.number().int().nonnegative(),
+  segmentType: SegmentTypeSchema,
+  startTime: z.string(),
+  endTime: z.string(),
+  startDate: z.string(),
+  endDate: z.string().nullish(),
+  durationMinutes: z.number().int().positive(),
+  distanceKm: z.number().nullish(),
+  trainWeightTons: z.number().nullish(),
+  notes: z.string().nullish(),
+});
+export type TripSegment = z.infer<typeof TripSegmentSchema>;
+
+export const CreateTripSegmentDtoSchema = z.object({
+  order: z.number().int().nonnegative(),
+  segmentType: SegmentTypeSchema,
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  durationMinutes: z.number().int().positive(),
+  distanceKm: z.number().optional(),
+  trainWeightTons: z.number().optional(),
+  notes: z.string().optional(),
+});
+export type CreateTripSegmentDto = z.infer<typeof CreateTripSegmentDtoSchema>;
+
 export const TripTypeSchema = z.enum(['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN']);
 export type TripType = z.infer<typeof TripTypeSchema>;
 
@@ -75,6 +108,7 @@ export const TripSchema = z.object({
   recuperation3Delivered: z.number().nullish(),
   checkpointOut: HHmm.nullish(),
   checkpointIn: HHmm.nullish(),
+  segments: TripSegmentSchema.array().optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 
@@ -122,6 +156,7 @@ export const CreateTripDtoSchema = z.object({
   recuperation3Delivered: z.number().optional(),
   checkpointOut: HHmm.optional(),
   checkpointIn: HHmm.optional(),
+  segments: CreateTripSegmentDtoSchema.array().optional(),
 });
 export type CreateTripDto = z.infer<typeof CreateTripDtoSchema>;
 

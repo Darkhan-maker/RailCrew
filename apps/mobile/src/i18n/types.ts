@@ -21,6 +21,13 @@ export type Strings = {
   nav_settings: string;
   nav_profile: string;
 
+  // Segment types
+  segmentType_DRIVING: string;
+  segmentType_PASSENGER: string;
+  segmentType_RESERVE: string;
+  segmentType_WAITING: string;
+  segmentType_TARIFF: string;
+
   // Trip types
   tripType_FREIGHT: string;
   tripType_PASSENGER: string;
@@ -129,6 +136,17 @@ export type Strings = {
   add_secAppearance: string;
   add_secHandover: string;
   add_secElec: string;
+  add_secSegments: string;
+  add_addSegment: string;
+  add_segmentType: string;
+  add_segmentStart: string;
+  add_segmentEnd: string;
+  add_segmentDistance: string;
+  add_segmentWeight: string;
+  add_segmentNotes: string;
+  add_segmentSave: string;
+  add_segmentEdit: string;
+  add_segmentDuration: string;
   add_secCheckpoint: string;
   add_secPassenger: string;
   add_secNotes: string;
@@ -361,6 +379,8 @@ export type Strings = {
   detail_secCheckpoint: string;
   detail_checkpointOut: string;
   detail_checkpointIn: string;
+  detail_secSegments: string;
+  detail_segmentsNone: string;
   // Calculator
   calc_title: string;
   calc_totalHours: string;

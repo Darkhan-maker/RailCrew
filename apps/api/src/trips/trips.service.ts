@@ -2,15 +2,24 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTripDto, TripQuery, TripSchema, TripListResponse } from '@railcrew/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 
+const segmentInclude = { segments: { orderBy: { order: 'asc' as const } } };
+
 @Injectable()
 export class TripsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateTripDto) {
+    const { segments, ...tripData } = dto;
     const trip = await this.prisma.trip.create({
-      data: { ...dto, userId, syncedAt: new Date() },
+      data: {
+        ...tripData,
+        userId,
+        syncedAt: new Date(),
+        ...(segments?.length ? { segments: { createMany: { data: segments } } } : {}),
+      },
+      include: segmentInclude,
     });
-    return TripSchema.parse(trip);
+    return TripSchema.parse(trip as unknown);
   }
 
   async findAll(userId: string, query: TripQuery): Promise<TripListResponse> {
@@ -40,6 +49,7 @@ export class TripsService {
         orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
+        include: segmentInclude,
       }),
       this.prisma.trip.count({ where }),
     ]);
@@ -48,18 +58,31 @@ export class TripsService {
   }
 
   async findOne(userId: string, id: string) {
-    const trip = await this.prisma.trip.findFirst({ where: { id, userId } });
+    const trip = await this.prisma.trip.findFirst({
+      where: { id, userId },
+      include: segmentInclude,
+    });
     if (!trip) throw new NotFoundException('Поездка не найдена');
-    return TripSchema.parse(trip);
+    return TripSchema.parse(trip as unknown);
   }
 
   async update(userId: string, id: string, dto: Partial<CreateTripDto>) {
     await this.findOne(userId, id);
+    const { segments, ...tripData } = dto;
     const updated = await this.prisma.trip.update({
       where: { id },
-      data: dto,
+      data: {
+        ...tripData,
+        ...(segments !== undefined ? {
+          segments: {
+            deleteMany: {},
+            ...(segments.length > 0 ? { createMany: { data: segments } } : {}),
+          },
+        } : {}),
+      },
+      include: segmentInclude,
     });
-    return TripSchema.parse(updated);
+    return TripSchema.parse(updated as unknown);
   }
 
   async remove(userId: string, id: string) {
@@ -67,7 +90,6 @@ export class TripsService {
     await this.prisma.trip.delete({ where: { id } });
   }
 
-  // Используется для сводок
   findForPeriod(userId: string, from: string, to: string): Promise<{ id: string; durationMinutes: number; startTime: string; routeFrom: string; routeTo: string }[]> {
     return this.prisma.trip.findMany({
       where: {

@@ -1,16 +1,30 @@
 import { create } from 'zustand';
 import { CreateTripDto } from '@railcrew/contracts';
-import { LocalTrip, LocalCreateTripDto, localTripsStorage } from '../services/storage.service';
+import { LocalTrip, LocalCreateTripDto, LocalSegment, localTripsStorage } from '../services/storage.service';
 import { tripsApi } from '../services/api.service';
 
-// Strip mobile-only fields before sending to API, then remove any null values.
-// CreateTripDtoSchema uses .optional() (not .nullish()), so null is rejected by
-// the backend. Converting null → undefined means the key is omitted from JSON.
+function segmentsToDto(segs: LocalSegment[] | undefined) {
+  if (!segs?.length) return undefined;
+  return segs.map(({ id: _id, ...rest }) => ({
+    order: rest.order,
+    segmentType: rest.segmentType as 'DRIVING' | 'PASSENGER' | 'RESERVE' | 'WAITING' | 'TARIFF',
+    startTime: rest.startTime,
+    endTime: rest.endTime,
+    startDate: rest.startDate,
+    endDate: rest.endDate ?? undefined,
+    durationMinutes: rest.durationMinutes,
+    distanceKm: rest.distanceKm ?? undefined,
+    trainWeightTons: rest.trainWeightTons ?? undefined,
+    notes: rest.notes ?? undefined,
+  }));
+}
+
 function toContractDto(dto: LocalCreateTripDto): CreateTripDto {
   const {
     meterStart, meterEnd,
     sectionMeters,
     nightMinutes,
+    segments,
     ...contractDto
   } = dto;
   void meterStart; void meterEnd;
@@ -21,6 +35,8 @@ function toContractDto(dto: LocalCreateTripDto): CreateTripDto {
   for (const [k, v] of Object.entries(contractDto)) {
     if (v !== null) result[k] = v;
   }
+  const converted = segmentsToDto(segments);
+  if (converted) result.segments = converted;
   return result as CreateTripDto;
 }
 
@@ -58,6 +74,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
         meterEnd: dto.meterEnd,
         sectionMeters: dto.sectionMeters,
         nightMinutes: dto.nightMinutes,
+        segments: dto.segments,
       };
       set((s) => ({ trips: [localTrip, ...s.trips] }));
       return localTrip;
@@ -77,6 +94,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
         meterStart, meterEnd,
         sectionMeters,
         nightMinutes,
+        segments,
         ...contractPatch
       } = patch;
       void meterStart; void meterEnd;
@@ -86,6 +104,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       for (const [k, v] of Object.entries(contractPatch)) {
         if (v !== null) cleanPatch[k] = v;
       }
+      const convertedSegs = segmentsToDto(segments);
+      if (convertedSegs !== undefined) cleanPatch.segments = convertedSegs;
       await tripsApi.update(id, cleanPatch as typeof contractPatch);
     } catch {
       // offline — saved locally
@@ -140,6 +160,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
           handoverDate: trip.handoverDate ?? undefined,
           handoverTime: trip.handoverTime ?? undefined,
           sectionCount: trip.sectionCount ?? undefined,
+          segments: segmentsToDto(trip.segments),
         });
         await localTripsStorage.markSynced(trip.localId!, created.id);
       } catch {

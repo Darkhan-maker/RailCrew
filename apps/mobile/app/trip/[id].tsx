@@ -14,6 +14,7 @@ import { useTripsStore } from '@/store/trips.store';
 import { tripsApi, exportApi } from '@/services/api.service';
 import { LocalTrip, LocalCreateTripDto } from '@/services/storage.service';
 import { TripType, UpdateTripDtoSchema } from '@railcrew/contracts';
+import { LocalSegment } from '@/services/storage.service';
 import { formatDateRu } from '@/utils/date';
 import { useLang, fmtDur } from '@/i18n';
 import { useTheme, Theme } from '@/theme';
@@ -28,6 +29,28 @@ function formatShortDatetime(date: string, time: string): string {
 }
 
 const TYPES: TripType[] = ['FREIGHT', 'PASSENGER', 'SHUNTING', 'DEAD_RUN'];
+
+const SEG_COLORS: Record<string, string> = {
+  DRIVING: '#3B82F6',
+  PASSENGER: '#10B981',
+  RESERVE: '#F59E0B',
+  WAITING: '#6B7280',
+  TARIFF: '#8B5CF6',
+};
+
+function segTypeLabelDetail(
+  type: string,
+  t: { segmentType_DRIVING: string; segmentType_PASSENGER: string; segmentType_RESERVE: string; segmentType_WAITING: string; segmentType_TARIFF: string },
+): string {
+  const map: Record<string, string> = {
+    DRIVING: t.segmentType_DRIVING,
+    PASSENGER: t.segmentType_PASSENGER,
+    RESERVE: t.segmentType_RESERVE,
+    WAITING: t.segmentType_WAITING,
+    TARIFF: t.segmentType_TARIFF,
+  };
+  return map[type] ?? type;
+}
 
 type PickerMode =
   | 'appearanceDate' | 'appearanceTime'
@@ -175,8 +198,10 @@ export default function TripDetailScreen() {
       Alert.alert(t.common_error, t.detail_checkData);
       return;
     }
+    const { segments: _seg, ...resultData } = result.data;
+    void _seg;
     const patch: Partial<LocalCreateTripDto> = {
-      ...result.data,
+      ...resultData,
       trainNumber: draft.trainNumber ?? undefined,
       trainWeight: draft.trainWeight ?? undefined,
       axleCount: draft.axleCount ?? undefined,
@@ -417,6 +442,37 @@ export default function TripDetailScreen() {
               <SectionTitle theme={theme}>{t.detail_secCheckpoint}</SectionTitle>
               <InfoRow theme={theme} label={t.detail_checkpointOut} value={trip.checkpointOut ? String(trip.checkpointOut) : t.detail_notSpecified} dim={!trip.checkpointOut} />
               <InfoRow theme={theme} label={t.detail_checkpointIn} value={trip.checkpointIn ? String(trip.checkpointIn) : t.detail_notSpecified} dim={!trip.checkpointIn} />
+            </View>
+          ) : null}
+
+          {/* Segments */}
+          {trip.segments && trip.segments.length > 0 ? (
+            <View style={cardStyle}>
+              <SectionTitle theme={theme}>{t.detail_secSegments}</SectionTitle>
+              {(trip.segments as LocalSegment[]).map((seg, i) => {
+                const color = SEG_COLORS[seg.segmentType] ?? '#6B7280';
+                return (
+                  <View
+                    key={seg.id}
+                    style={[s.detailSegRow, i > 0 && { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.border }]}
+                  >
+                    <View style={[s.detailSegBadge, { backgroundColor: color + '20' }]}>
+                      <Text style={[s.detailSegType, { color }]}>{segTypeLabelDetail(seg.segmentType, t)}</Text>
+                    </View>
+                    <Text style={[s.detailSegTime, { color: theme.text }]}>{seg.startTime} – {seg.endTime}</Text>
+                    <Text style={[s.detailSegDur, { color: theme.textMute }]}>{fmtDur(seg.durationMinutes, t)}</Text>
+                    {seg.segmentType === 'DRIVING' && (seg.distanceKm || seg.trainWeightTons) && (
+                      <Text style={[s.detailSegExtra, { color: theme.textMute }]}>
+                        {[
+                          seg.distanceKm ? `${seg.distanceKm} км` : null,
+                          seg.trainWeightTons ? `${seg.trainWeightTons} т` : null,
+                        ].filter(Boolean).join(' · ')}
+                      </Text>
+                    )}
+                    {seg.notes ? <Text style={[s.detailSegExtra, { color: theme.textMute }]}>{seg.notes}</Text> : null}
+                  </View>
+                );
+              })}
             </View>
           ) : null}
 
@@ -908,4 +964,12 @@ const s = StyleSheet.create({
   },
   iosSheetTitle: { fontSize: 16, fontWeight: '600' },
   iosSheetDone: { fontSize: 16, fontWeight: '600' },
+
+  // Segment detail styles
+  detailSegRow: { gap: 3 },
+  detailSegBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, marginBottom: 3 },
+  detailSegType: { fontSize: 12, fontWeight: '600' },
+  detailSegTime: { fontSize: 14, fontWeight: '500' },
+  detailSegDur: { fontSize: 12 },
+  detailSegExtra: { fontSize: 12 },
 });

@@ -14,16 +14,31 @@ export type SectionMeter = {
   end?: number;
 };
 
+export type LocalSegment = {
+  id: string;
+  order: number;
+  segmentType: string;
+  startTime: string;
+  endTime: string;
+  startDate: string;
+  endDate?: string | null;
+  durationMinutes: number;
+  distanceKm?: number | null;
+  trainWeightTons?: number | null;
+  notes?: string | null;
+};
+
 export type LocalTripExtra = {
-  meterStart?: number;      // backward-compat alias for sectionMeters[0].start
-  meterEnd?: number;        // backward-compat alias for sectionMeters[0].end
+  meterStart?: number;
+  meterEnd?: number;
   sectionMeters?: SectionMeter[];
   nightMinutes?: number;
   holidayMinutes?: number;
+  segments?: LocalSegment[];
 };
 
-export type LocalTrip = Trip & LocalTripExtra;
-export type LocalCreateTripDto = CreateTripDto & LocalTripExtra;
+export type LocalTrip = Omit<Trip, 'segments'> & LocalTripExtra;
+export type LocalCreateTripDto = Omit<CreateTripDto, 'segments'> & LocalTripExtra;
 
 function randomUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
